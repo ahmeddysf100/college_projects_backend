@@ -1,0 +1,109 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// model ashkal {
+//   id        Int      @id @default(autoincrement())
+//   imageUrl  String   @unique
+//   num_input String
+//   answer    String
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+//   author    admin?   @relation(fields: [authorid], references: [id])
+//   authorid  Int?
+// }
+
+// model admin {
+//   id        Int      @id @default(autoincrement())
+//   name      String?
+//   email     String   @unique
+//   password  String
+// createdAt DateTime @default(now())
+// updatedAt DateTime @updatedAt
+//   ashkals   ashkal[]
+// }
+
+// User model
+model User {
+  id       Int    @id @default(autoincrement())
+  username String
+  email    String @unique
+  password String
+
+  subjects  Subject[]
+  quizzes   Quiz[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Subject model
+model Subject {
+  id           Int    @id @default(autoincrement())
+  subject_name String @unique
+
+  questions Question[]
+  User      User?      @relation(fields: [userId], references: [id])
+  userId    Int?
+  Quiz      Quiz[]
+}
+
+// Quiz model (unchanged for simplicity)
+model Quiz {
+  id    Int    @id @default(autoincrement())
+  level String
+  type  String
+
+  userId    Int
+  User      User       @relation(fields: [userId], references: [id])
+  questions Question[]
+  Subject   Subject    @relation(fields: [subjectId], references: [id])
+  subjectId Int
+}
+
+// Question and Answer models (unchanged for simplicity)
+model Question {
+  id            Int     @id @default(autoincrement())
+  Q_imageUrl    String? @unique
+  Q_text        String?
+  correctAnswer String?
+
+  subjectId         Int
+  Subject           Subject             @relation(fields: [subjectId], references: [id])
+  AnswerExplanation AnswerExplanation[]
+  answers           Answer[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  Quiz              Quiz?               @relation(fields: [quizId], references: [id])
+  quizId            Int?
+}
+
+model Answer {
+  id        Int      @id @default(autoincrement())
+  A_text    String?
+  isCorrect Boolean?
+
+
+  questionId Int
+  Question   Question @relation(fields: [questionId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AnswerExplanation {
+  id              Int     @id @default(autoincrement())
+  explanationText String? // Text-based explanation, if applicable
+  A_imageUrl      String? @unique // URL for image-based explanation, if applicable
+
+  questionId Int
+  Question   Question @relation(fields: [questionId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
