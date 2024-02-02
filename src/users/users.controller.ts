@@ -24,6 +24,7 @@ export class UsersController {
 
   @ApiCreatedResponse({ type: UserEntity })
   @Post('create')
+  @UseInterceptors(NoFilesInterceptor())
   create(@Body() createUserDto: CreateUserDto) {
     console.log(createUserDto);
     return this.usersService.create(createUserDto);

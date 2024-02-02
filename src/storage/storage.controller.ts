@@ -12,6 +12,8 @@ import {
   UseGuards,
   HttpException,
   HttpStatus,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  Req,
 } from '@nestjs/common';
 import { StorageService } from './storage.service';
 import { CreateStorageDto } from './dto/create-storage.dto';
@@ -20,13 +22,17 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { multerConfig } from 'src/multer/multer.config';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
+import { Roles } from 'src/auth/roles/decorator';
+import { Role } from 'src/auth/roles/enum';
+import { RolesGuard } from 'src/auth/roles/roles.guard';
 
 @Controller('storage')
 export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('question')
-  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -124,25 +130,35 @@ export class StorageController {
     }
   }
 
+  // @Roles(Role.Admin)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Get('role')
+  // async fi(@Req() req: any, @Res() res: any) {
+  //   return await res.status(HttpStatus.OK).json(req.user);
+  // }
+
   @Get('questions')
-  // @UseGuards(JwtAuthGuard)
   async findAll() {
     return await this.storageService.findAll();
   }
 
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('getBySubject/:id')
-  // @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.storageService.findBySubject(id);
   }
 
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('getOneQuesion/:id')
   findOneQuestion(@Param('id') id: string) {
     return this.storageService.findOneQuestion(+id);
   }
 
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('getImage/:imagePath')
-  // @UseGuards(JwtAuthGuard)
   async getImage(@Param('imagePath') filename: string, @Res() res: Response) {
     try {
       return res.sendFile(filename, { root: 'uploads' });
@@ -153,12 +169,16 @@ export class StorageController {
     }
   }
 
+  // @Roles(Role.Admin)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Patch(':id')
   // @UseGuards(JwtAuthGuard)
   // update(@Param('id') id: string, @Body() updateStorageDto: UpdateStorageDto) {
   //   return this.storageService.update(+id, updateStorageDto);
   // }
 
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string) {

@@ -23,14 +23,17 @@ export class UsersService {
 
       const create = await this.prisma.user.create({
         data: {
-          username: createUserDto.name,
+          username: createUserDto.namee,
           email: createUserDto.email,
           password: createUserDto.password,
+          role: createUserDto.role,
         },
       });
       if (!create) return 'no create user';
       delete create.password;
-      return create;
+      delete create.id;
+      delete create.role;
+      return { create: create, HttpStatus: HttpStatus.CREATED };
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -88,7 +91,7 @@ export class UsersService {
           id: id,
         },
         data: {
-          username: updateUserDto.name,
+          username: updateUserDto.namee,
           email: updateUserDto.email,
           password: updateUserDto.password,
         },

@@ -18,6 +18,10 @@ export class UserEntity implements User {
 
   @ApiProperty()
   email: string;
+
+  @ApiProperty()
+  role: string;
+
   @ApiProperty()
   password: string;
 }
