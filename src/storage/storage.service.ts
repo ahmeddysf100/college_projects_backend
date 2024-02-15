@@ -154,17 +154,20 @@ export class StorageService {
   ) {
     try {
       let Q_textV2 = createStorageDto.Q_text;
-      if (createStorageDto.explanationText === 'null') {
+      if (Q_textV2 === 'null') {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         Q_textV2 = null;
       }
-
+      let correctAnswerV2 = createStorageDto.correctAnswer;
+      if (createStorageDto.correctAnswer === 'null') {
+        correctAnswerV2 = null;
+      }
       // Insert the question if the Q_imageUrl is unique
       const createdQuestion = await this.prisma.question.create({
         data: {
           Q_imageUrl: Q_imageUrl,
           Q_text: Q_textV2,
-          correctAnswer: createStorageDto.correctAnswer,
+          correctAnswer: correctAnswerV2,
           subjectId: subId,
           quizId: quizId,
         },

@@ -9,6 +9,7 @@ import { RolesGuard } from './auth/roles/roles.guard';
 import { JwtService } from '@nestjs/jwt';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { JwtAuthGuard } from './auth/guard/jwt-auth.guard';
+import { QuizModule } from './quiz/quiz.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from './auth/guard/jwt-auth.guard';
     UsersModule,
     StorageModule,
     AuthModule,
+    QuizModule,
   ],
   providers: [
     {
