@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { JwtAuthGuard } from './auth/guard/jwt-auth.guard';
 import { QuizModule } from './quiz/quiz.module';
+import { SocketsModule } from './sockets/sockets.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { QuizModule } from './quiz/quiz.module';
     StorageModule,
     AuthModule,
     QuizModule,
+    SocketsModule,
   ],
   providers: [
     {

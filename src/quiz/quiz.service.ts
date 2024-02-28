@@ -17,22 +17,31 @@ export class QuizService {
   //   return `This action returns all quiz`;
   // }
 
-  async findOne(count: number, difficulty: number) {
+  async findOne(count: number, difficulty: number, subject: string) {
     try {
+      const whereClause: any = {
+        Quiz: {
+          level: difficulty.toString(),
+        },
+      };
+
+      if (subject !== 'random') {
+        whereClause.Subject = {
+          subject_name: subject,
+        };
+      }
+      console.log(whereClause);
       const find = await this.prisma.question.findMany({
         include: {
           answers: true,
           AnswerExplanation: true,
         },
-        where: {
-          Quiz: {
-            level: difficulty.toString(),
-          },
-        },
+        where: whereClause,
         orderBy: {
           id: 'asc',
         },
       });
+
       if (find.length === 0) {
         return new HttpException(
           `quistions not found with COUNT: ${count} and DIFFICULTY: ${difficulty}`,

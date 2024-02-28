@@ -156,7 +156,7 @@ export class StorageController {
     return this.storageService.findOneQuestion(+id);
   }
 
-  @Roles(Role.Admin)
+  // @Roles(Role.User)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('getImage/:imagePath')
   async getImage(@Param('imagePath') filename: string, @Res() res: Response) {

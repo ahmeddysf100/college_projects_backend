@@ -25,12 +25,13 @@ export class QuizController {
   //   return this.quizService.findAll();
   // }
 
-  @Get('/:count/:difficulty')
+  @Get('/:count/:difficulty/:subject')
   async findOne(
     @Param('count') count: string,
     @Param('difficulty') difficulty: string,
+    @Param('subject') subject: string,
   ) {
-    return await this.quizService.findOne(+count, +difficulty);
+    return await this.quizService.findOne(+count, +difficulty, subject);
   }
 
   @Patch(':id')
