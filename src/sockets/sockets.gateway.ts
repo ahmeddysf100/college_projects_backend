@@ -23,6 +23,22 @@ export class SocketsGateway implements OnModuleInit {
       console.log('user connect id:', socket.handshake.headers.roomid);
       socket.join(socket.handshake.headers.roomid);
       console.log(socket.rooms);
+
+      // Get the adapter associated with the server
+      const adapter = this.server.of('/').adapter;
+
+      // Create a Map to store the room name and the number of clients in that room
+      const roomClientsCount = new Map<string, number>();
+
+      // Iterate over all rooms and count the number of clients in each room
+      adapter.rooms.forEach((value: Set<string>, key: string) => {
+        roomClientsCount.set(key, value.size);
+      });
+
+      // Log the room names and the number of clients in each room
+      roomClientsCount.forEach((count, roomName) => {
+        console.log(`Room: ${roomName}, Clients: ${count}`);
+      });
     });
   }
 
