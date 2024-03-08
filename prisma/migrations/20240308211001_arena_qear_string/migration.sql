@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Arena" ALTER COLUMN "arenaQear" SET DATA TYPE TEXT;

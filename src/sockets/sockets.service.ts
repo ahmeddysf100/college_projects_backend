@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { CreateSocketDto } from './dto/create-socket.dto';
 import { UpdateSocketDto } from './dto/update-socket.dto';
-
+import { WebSocketServer } from '@nestjs/websockets';
+import { Server } from 'socket.io';
 @Injectable()
 export class SocketsService {
+  @WebSocketServer()
+  server: Server;
+
   create(createSocketDto: CreateSocketDto) {
-    return 'This action adds a new socket';
+    console.log(createSocketDto);
   }
 
   findAll() {
@@ -23,4 +27,7 @@ export class SocketsService {
   remove(id: number) {
     return `This action removes a #${id} socket`;
   }
+
+
+  
 }
