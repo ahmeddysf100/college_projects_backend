@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Arena } from 'shared/arena-types';
-import { createArenaID, createUserID } from './ids';
-import { AddParticipantFields, RejoinArenaFields } from './types/types';
+import { createArenaID, createNominationID, createUserID } from './ids';
+import { AddNominationFields, AddParticipantFields, RejoinArenaFields } from './types/types';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
@@ -33,7 +33,7 @@ export class ArenaService {
     const signedString = this.jwtService.sign(
       {
         arenaId: createdArena.id,
-        name: createArenaDto.author,
+        name: createArenaDto.adminName,
       },
       {
         subject: userId,
@@ -107,5 +107,23 @@ export class ArenaService {
       );
       return updatedPoll;
     }
+  }
+
+  async addNomination({
+    arenaId,
+    userId,
+    Q_id,
+    text,
+    name,
+  }: AddNominationFields): Promise<any> {
+    return this.arenaRepository.addNomination({
+      arenaId,
+      nomination: {
+        userId,
+        Q_id,
+        text,
+        name,
+      },
+    });
   }
 }

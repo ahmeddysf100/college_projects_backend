@@ -7,7 +7,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { CreateArenaDto } from './dto/create-socket.dto';
-import { AddParticipantData } from './types/types';
+import {
+  AddNominationData,
+  AddParticipantData,
+  Solver,
+  StoredAnswers,
+} from './types/types';
 import { Arena, ArenaQear } from 'shared';
 
 @Injectable()
@@ -31,12 +36,13 @@ export class ArenaRepository {
       id: arenaId,
       arenaQear: createArenaDto.arenaQear,
       numOfPlayers: createArenaDto.numOfPlayers,
+      adminId: userId,
+      hasStarted: createArenaDto.hasStarted,
+      roundTime: createArenaDto.roundTime,
       participants: {},
       nominations: {},
       rankings: {},
       results: [],
-      adminId: userId,
-      hasStarted: false,
     };
     this.logger.log(
       `Creating new Arena: ${JSON.stringify(initialArena)} with TTL ${
@@ -72,19 +78,26 @@ export class ArenaRepository {
   }
 
   async storeAnswers(questions: ArenaQear[], arenaId: string): Promise<void> {
-    const answerObj = {}; // Create an object to store each answer
-
+    const answerObj = []; // Create an object to store each answer
     for (const question of questions) {
       // Check if the question has a correct answer
       if (question.correctAnswer) {
-        answerObj[`Q_id:${question.id}`] = question.correctAnswer;
+        answerObj.push({
+          Q_id: question.id,
+          text: question.correctAnswer,
+          solver: {},
+        });
       }
 
       // Check if the question has multiple answers
       if (question.answers.length > 0) {
         const correctAnswers = question.answers.filter((a) => a.isCorrect); // Filter correct answers
-        console.warn('wweeww', correctAnswers);
-        answerObj[`Q_id:${question.id}`] = correctAnswers[0].A_text;
+        // console.warn('wweeww', correctAnswers);
+        answerObj.push({
+          Q_id: question.id,
+          text: correctAnswers[0].A_text,
+          solver: {},
+        });
       }
     }
     this.logger.debug(answerObj);
@@ -110,7 +123,7 @@ export class ArenaRepository {
     }
   }
 
-  async getAnswers(arenaId: string): Promise<any> {
+  async getAnswers(arenaId: string): Promise<StoredAnswers[]> {
     this.logger.log(`Attempting to get Answers for Arena: ${arenaId}`);
     const key = `answers:arenaId:${arenaId}`;
     try {
@@ -209,6 +222,89 @@ export class ArenaRepository {
         e,
       );
       throw new InternalServerErrorException('Failed to remove participant');
+    }
+  }
+
+  // async addNomination({
+  //   arenaId,
+  //   nominationId,
+  //   nomination,
+  // }: AddNominationData): Promise<Arena> {
+  //   this.logger.log(
+  //     `Attempting to add a nomination with nominationID/nomination: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
+  //   );
+
+  //   const key = `arenaId:${arenaId}`;
+  //   const nominationPath = `.nominations.${nominationId}`;
+
+  //   try {
+  //     await this.redis.call(
+  //       'JSON.SET',
+  //       key,
+  //       nominationPath,
+  //       JSON.stringify(nomination),
+  //     );
+
+  //     return this.getArena(arenaId);
+  //   } catch (e) {
+  //     this.logger.error(
+  //       `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
+  //       e,
+  //     );
+  //     throw new InternalServerErrorException(
+  //       `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
+  //     );
+  //   }
+  // }
+
+  async addNomination({ arenaId, nomination }: AddNominationData) {
+    // const key = `answers:arenaId:${arenaId}`;
+    // const path = ``;
+
+    const answers = await this.getAnswers(arenaId);
+    for (const [index, answer] of answers.entries()) {
+      if (answer.Q_id === nomination.Q_id && answer.text === nomination.text) {
+        this.logger.warn(
+          JSON.stringify(answer, null, 2) +
+            '  ' +
+            JSON.stringify(nomination, null, 2),
+        );
+        return await this.saveSolver(
+          { userId: nomination.userId, name: nomination.name },
+          arenaId,
+          index,
+          nomination.Q_id,
+        );
+      }
+    }
+  }
+
+  async saveSolver(
+    solver: Solver,
+    arenaId: string,
+    index: number,
+    Q_id: number,
+  ) {
+    const data = {
+      userId: solver.userId,
+      name: solver.name,
+    };
+    try {
+      const x = await this.redis.call(
+        'JSON.SET',
+        `answers:arenaId:${arenaId}`,
+        `.[${index}].solver`,
+        JSON.stringify(data),
+      );
+      this.logger.fatal(x + ' ' + index);
+      return 'NEXT';
+    } catch (e) {
+      this.logger.error(
+        `Failed to set SOLVER:${JSON.stringify(data, null, 2)} arenaId ${arenaId}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get arenaId ${arenaId}`,
+      );
     }
   }
 }

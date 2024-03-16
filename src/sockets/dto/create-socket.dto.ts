@@ -29,11 +29,11 @@ export class CreateArenaDto {
 
   @IsString()
   @IsNotEmpty()
-  author: string;
+  adminName: string;
 
   @IsBoolean()
   @IsNotEmpty()
-  isOpen: boolean;
+  hasStarted: boolean;
 }
 
 export class JoinArenaDto {
@@ -44,4 +44,14 @@ export class JoinArenaDto {
   @IsString()
   @Length(1, 25)
   name: string;
+}
+
+export class NominationDto {
+  @IsString()
+  @Length(1, 100)
+  text: string;
+
+  @IsString()
+  @Length(1, 100)
+  Q_id: number;
 }

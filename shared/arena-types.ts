@@ -3,7 +3,9 @@ export type Participants = {
 };
 
 export type Nomination = {
-  userID: string;
+  userId: string;
+  name: string;
+  Q_id: number;
   text: string;
 };
 

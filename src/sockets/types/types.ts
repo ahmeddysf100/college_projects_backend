@@ -30,6 +30,8 @@ export type AddNominationFields = {
   arenaId: string;
   userId: string;
   text: string;
+  name: string;
+  Q_id: number;
 };
 
 export type SubmitRankingsFields = {
@@ -54,7 +56,6 @@ export type AddParticipantData = {
 
 export type AddNominationData = {
   arenaId: string;
-  nominationId: string;
   nomination: Nomination;
 };
 
@@ -63,6 +64,17 @@ export type AddParticipantRankingsData = {
   userId: string;
   rankings: string[];
 };
+
+export interface StoredAnswers {
+  Q_id: number;
+  text: string;
+  solver: Solver;
+}
+
+export interface Solver {
+  userId: string;
+  name: string;
+}
 
 // guard types
 export type AuthPayload = {

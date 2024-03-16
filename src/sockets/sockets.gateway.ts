@@ -9,7 +9,7 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { SocketsService } from './sockets.service';
-import { CreateSocketDto } from './dto/create-socket.dto';
+import { CreateSocketDto, NominationDto } from './dto/create-socket.dto';
 import { UpdateSocketDto } from './dto/update-socket.dto';
 import { Namespace, Server, Socket } from 'socket.io';
 import { Logger, UseFilters, UseGuards } from '@nestjs/common';
@@ -17,6 +17,7 @@ import { SocketWithAuth } from './types/types';
 import { WsCatchAllFilter } from 'src/exceptions/ws-catch-all-filter';
 import { ArenaService } from './arena.service';
 import { GatewayAdminGuard } from './guard/gateway.Admin.guard';
+import { ArenaRepository } from './arena.repository';
 @UseFilters(new WsCatchAllFilter())
 @WebSocketGateway({
   namespace: 'arena',
@@ -34,6 +35,7 @@ export class SocketsGateway
   constructor(
     private readonly socketsService: SocketsService,
     private readonly arenaService: ArenaService,
+    private readonly arenaRepository: ArenaRepository,
   ) {}
 
   @WebSocketServer() io: Namespace; //get server istance for only arena gateway
@@ -116,8 +118,11 @@ export class SocketsGateway
       client.arenaId,
       id,
     );
+
     console.log('aaaaaaaaaaaaaaaaaaaa', client.arenaId);
-    this.io.to(client.arenaId).emit('arena_updated', updateArena);
+    if (updateArena) {
+      this.io.to(client.arenaId).emit('arena_updated', updateArena);
+    }
   }
 
   @SubscribeMessage('test')
@@ -125,14 +130,35 @@ export class SocketsGateway
     throw new Error('aaaaaaa');
   }
 
-  @SubscribeMessage('findAllSockets')
-  findAll() {
-    return this.socketsService.findAll();
+  @SubscribeMessage('nominate')
+  async nominate(
+    @MessageBody() nomination: NominationDto,
+    @ConnectedSocket() client: SocketWithAuth,
+  ): Promise<void> {
+    this.logger.debug(
+      `Attempting to add nomination for user ${client.userId} to poll ${client.arenaId}\n${nomination.text}`,
+    );
+
+    const updatedPoll = await this.arenaService.addNomination({
+      arenaId: client.arenaId,
+      userId: client.userId,
+      Q_id: nomination.Q_id,
+      text: nomination.text,
+      name: client.name,
+    });
+
+    this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
 
-  @SubscribeMessage('findOneSocket')
-  findOne(@MessageBody() id: number) {
-    return this.socketsService.findOne(id);
+  @SubscribeMessage('aaa')
+  async findOne(
+    @MessageBody() id: any,
+    @ConnectedSocket() client: SocketWithAuth,
+  ) {
+    console.log(id);
+    const req = await this.arenaRepository.getAnswers(id.id);
+
+    this.io.to(client.arenaId).emit('arena_updated', req);
   }
 
   @SubscribeMessage('updateSocket')
