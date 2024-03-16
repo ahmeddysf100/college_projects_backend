@@ -11,10 +11,16 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './auth/guard/jwt-auth.guard';
 import { QuizModule } from './quiz/quiz.module';
 import { SocketsModule } from './sockets/sockets.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    RedisModule.forRoot({
+      type: 'single',
+      url: 'redis://localhost:6379',
+      // url: 'redis://172.17.0.2:6379', do not work
+    }),
     PrismaModule,
     UsersModule,
     StorageModule,

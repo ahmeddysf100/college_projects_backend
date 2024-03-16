@@ -119,4 +119,7 @@ model Arena {
   roundTime Int
   numOfPlayers Int
   author String
+  isOpen Boolean 
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

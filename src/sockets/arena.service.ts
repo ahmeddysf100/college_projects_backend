@@ -1,49 +1,111 @@
-import { Injectable } from '@nestjs/common';
-import { CreateArenaDto } from './dto/create-socket.dto';
-import { UpdateSocketDto } from './dto/update-socket.dto';
-import { nanoid } from 'nanoid';
-import { PrismaService } from 'src/prisma/prisma.service';
-// import { WebSocketServer } from '@nestjs/websockets';
-// import { Server } from 'socket.io';
+import { Injectable, Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Arena } from 'shared/arena-types';
+import { createArenaID, createUserID } from './ids';
+import { AddParticipantFields, RejoinArenaFields } from './types/types';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Redis } from 'ioredis';
+import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
+import { ArenaRepository } from './arena.repository';
+
 @Injectable()
 export class ArenaService {
-  constructor(private readonly prisma: PrismaService) {}
-  //   @WebSocketServer()
-  //   server: Server;
+  private readonly logger = new Logger(ArenaService.name);
+  constructor(
+    private readonly jwtService: JwtService,
+    @InjectRedis() private readonly redis: Redis,
+    private readonly arenaRepository: ArenaRepository,
+  ) {}
+  async createArena(createArenaDto: CreateArenaDto) {
+    const arenaId = createArenaID();
+    const userId = createUserID();
 
-  async create(createArenaDto: CreateArenaDto) {
-    const arenaId = nanoid(6);
+    const createdArena = await this.arenaRepository.createArena(
+      createArenaDto,
+      arenaId,
+      userId,
+    );
 
-    console.log(arenaId);
-    try {
-      const res = await this.prisma.arena.create({
-        data: {
-          arenaQear: createArenaDto.arenaQear,
-          roundTime: createArenaDto.roundTime,
-          numOfPlayers: createArenaDto.numOfPlayers,
-          author: createArenaDto.author,
-          arenaId: arenaId,
-        },
-      });
-      return res;
-    } catch (error) {
-      return error;
+    this.logger.debug(
+      `Creating token string for arenaID: ${createdArena.id} and userID: ${userId}`,
+    );
+
+    const signedString = this.jwtService.sign(
+      {
+        arenaId: createdArena.id,
+        name: createArenaDto.author,
+      },
+      {
+        subject: userId,
+      },
+    );
+
+    return {
+      arena: createdArena,
+      accessToken: signedString,
+    };
+  }
+
+  async joinArena(fields: JoinArenaDto) {
+    const userId = createUserID();
+
+    this.logger.debug(
+      `Fetching Arena with ID: ${fields.arenaId} for user with ID: ${userId}`,
+    );
+
+    const joinedArena = await this.arenaRepository.getArena(fields.arenaId);
+
+    this.logger.debug(
+      `Creating token string for ArenaID: ${joinedArena.id} and userID: ${userId}`,
+    );
+
+    const signedString = this.jwtService.sign(
+      {
+        arenaId: joinedArena.id,
+        name: fields.name,
+      },
+      {
+        subject: userId,
+      },
+    );
+
+    return {
+      arena: joinedArena,
+      accessToken: signedString,
+    };
+  }
+
+  async getArena(arenaId: string): Promise<Arena> {
+    return this.arenaRepository.getArena(arenaId);
+  }
+
+  async rejoinArena(fields: RejoinArenaFields) {
+    this.logger.debug(
+      `Rejoining Arena with ID: ${fields.arenaId} for user with ID: ${fields.userId} with name: ${fields.name}`,
+    );
+
+    const joinedArena = await this.arenaRepository.addParticipant(fields);
+
+    return joinedArena;
+  }
+
+  async addParticipant(addParticipant: AddParticipantFields): Promise<Arena> {
+    return this.arenaRepository.addParticipant(addParticipant);
+  }
+
+  async removeParticipant(
+    arenaId: string,
+    userId: string,
+  ): Promise<Arena | void> {
+    const poll = await this.arenaRepository.getArena(arenaId);
+
+    // if arena did not start you can remove players
+    if (!poll.hasStarted) {
+      const updatedPoll = await this.arenaRepository.removeParticipant(
+        arenaId,
+        userId,
+      );
+      return updatedPoll;
     }
-  }
-
-  findAll() {
-    return `This action returns all sockets`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} socket`;
-  }
-
-  update(id: number, updateSocketDto: UpdateSocketDto) {
-    return `This action updates a #${id} socket`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} socket`;
   }
 }

@@ -27,7 +27,4 @@ export class SocketsService {
   remove(id: number) {
     return `This action removes a #${id} socket`;
   }
-
-
-  
 }
