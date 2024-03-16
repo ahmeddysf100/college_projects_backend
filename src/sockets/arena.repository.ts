@@ -293,11 +293,11 @@ export class ArenaRepository {
       const x = await this.redis.call(
         'JSON.SET',
         `answers:arenaId:${arenaId}`,
-        `.[${index}].solver`,
+        `.[${index}].solver`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
         JSON.stringify(data),
       );
       this.logger.fatal(x + ' ' + index);
-      return 'NEXT';
+      return 'NEXT'; // next to till all players to go to next question
     } catch (e) {
       this.logger.error(
         `Failed to set SOLVER:${JSON.stringify(data, null, 2)} arenaId ${arenaId}`,
