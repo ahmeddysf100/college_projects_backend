@@ -7,6 +7,7 @@ export type Nomination = {
   name: string;
   Q_id: number;
   text: string;
+  time: Date | string;
 };
 
 type NominationID = string;

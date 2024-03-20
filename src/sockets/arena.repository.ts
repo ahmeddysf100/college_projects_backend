@@ -13,7 +13,8 @@ import {
   Solver,
   StoredAnswers,
 } from './types/types';
-import { Arena, ArenaQear } from 'shared';
+import { Arena, ArenaQear, Nomination } from 'shared';
+import { CreateArena } from './types/createArena';
 
 @Injectable()
 export class ArenaRepository {
@@ -53,14 +54,29 @@ export class ArenaRepository {
     const key = `arenaId:${arenaId}`;
 
     await this.storeAnswers(createArenaDto.arenaQear as any, arenaId);
+    this.logger.fatal(createArenaDto.arenaQear.length);
+    // Clean up createArenaDto.arenaQear
+    // Assuming createArenaDto.arenaQear is defined and contains the array of questions
+
+    // Clean up the arenaQear array
+    createArenaDto.arenaQear.forEach((question: any) => {
+      // Determine the question type based on the presence of correctAnswer
+      if (question.correctAnswer) {
+        question.type = 'single';
+        question.answers = null;
+      } else {
+        // Modify the answers array
+        question.answers = question.answers.map((answer) => ({
+          A_text: answer.A_text,
+        }));
+        question.type = 'multiple';
+      }
+      // reset the correctAnswer and AnswerExplanation property
+      question.correctAnswer = null;
+      question.AnswerExplanation = null;
+    });
+
     try {
-      // Await the Redis set operation and handle errors
-      // await this.redis.set(
-      //   `arenaId:${arenaId}`,
-      //   JSON.stringify(initialArena),
-      //   'EX',
-      //   this.ttl,
-      // );
       await this.redis
         .multi([
           ['send_command', 'JSON.SET', key, '.', JSON.stringify(initialArena)],
@@ -78,26 +94,22 @@ export class ArenaRepository {
   }
 
   async storeAnswers(questions: ArenaQear[], arenaId: string): Promise<void> {
-    const answerObj = []; // Create an object to store each answer
+    const answerObj = {}; // Create an object to store each answer
     for (const question of questions) {
       // Check if the question has a correct answer
       if (question.correctAnswer) {
-        answerObj.push({
-          Q_id: question.id,
+        answerObj[`Q_id:${question.id}`] = {
           text: question.correctAnswer,
-          solver: {},
-        });
+        };
       }
 
       // Check if the question has multiple answers
       if (question.answers.length > 0) {
         const correctAnswers = question.answers.filter((a) => a.isCorrect); // Filter correct answers
         // console.warn('wweeww', correctAnswers);
-        answerObj.push({
-          Q_id: question.id,
+        answerObj[`Q_id:${question.id}`] = {
           text: correctAnswers[0].A_text,
-          solver: {},
-        });
+        };
       }
     }
     this.logger.debug(answerObj);
@@ -123,7 +135,7 @@ export class ArenaRepository {
     }
   }
 
-  async getAnswers(arenaId: string): Promise<StoredAnswers[]> {
+  async getAnswers(arenaId: string, Q_id: number): Promise<StoredAnswers> {
     this.logger.log(`Attempting to get Answers for Arena: ${arenaId}`);
     const key = `answers:arenaId:${arenaId}`;
     try {
@@ -131,9 +143,13 @@ export class ArenaRepository {
       //   .multi([['send_command', 'JSON.GET', key, '.']])
       //   .exec();
 
-      const currentAnswers: any = await this.redis.call('JSON.GET', key, '.');
+      const currentAnswers: any = await this.redis.call(
+        'JSON.GET',
+        key,
+        `.Q_id:${Q_id}`,
+      );
 
-      this.logger.verbose(currentAnswers);
+      // this.logger.verbose(currentAnswers);
 
       // if (currentAnswers?.hasStarted) {
       //   throw new BadRequestException('The Arena has already started');
@@ -141,9 +157,9 @@ export class ArenaRepository {
 
       return JSON.parse(currentAnswers);
     } catch (e) {
-      this.logger.error(`Failed to get ANSWERS FOR arenaId ${arenaId}`);
+      this.logger.error(`Failed to get ANSWERS FOR arenaId ${arenaId}`, e);
       throw new InternalServerErrorException(
-        `Failed to get ANSWERS FOR arenaId ${arenaId}`,
+        `Failed to get ANSWERS FOR arenaId ${arenaId} \n${e}`,
       );
     }
   }
@@ -188,6 +204,8 @@ export class ArenaRepository {
     const participantPath = `.participants.${userId}`;
 
     try {
+      await this.setRankings(arenaId, userId);
+
       await this.redis.call(
         'JSON.SET',
         key,
@@ -200,8 +218,25 @@ export class ArenaRepository {
       this.logger.error(
         `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
       );
-      throw new InternalServerErrorException(
-        `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
+      // throw new InternalServerErrorException(
+      //   `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
+      // );
+    }
+  }
+
+  async setRankings(arenaId: string, userId: string) {
+    try {
+      this.logger.debug(
+        `attempting to set RANKING to arenaId:${arenaId} / userId:${userId}`,
+      );
+
+      const key = `arenaId:${arenaId}`;
+      const path = `.rankings.${userId}`;
+
+      await this.redis.call('JSON.SET', key, path, 0);
+    } catch (e) {
+      this.logger.error(
+        ` faild in SETTING ranking to arenaId:${arenaId} / userId:${userId} \nERROR:${e}`,
       );
     }
   }
@@ -225,85 +260,135 @@ export class ArenaRepository {
     }
   }
 
-  // async addNomination({
-  //   arenaId,
-  //   nominationId,
-  //   nomination,
-  // }: AddNominationData): Promise<Arena> {
-  //   this.logger.log(
-  //     `Attempting to add a nomination with nominationID/nomination: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
-  //   );
-
-  //   const key = `arenaId:${arenaId}`;
-  //   const nominationPath = `.nominations.${nominationId}`;
-
-  //   try {
-  //     await this.redis.call(
-  //       'JSON.SET',
-  //       key,
-  //       nominationPath,
-  //       JSON.stringify(nomination),
-  //     );
-
-  //     return this.getArena(arenaId);
-  //   } catch (e) {
-  //     this.logger.error(
-  //       `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
-  //       e,
-  //     );
-  //     throw new InternalServerErrorException(
-  //       `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
-  //     );
-  //   }
-  // }
-
-  async addNomination({ arenaId, nomination }: AddNominationData) {
+  async addNomination({
+    arenaId,
+    nominationId,
+    nomination,
+  }: AddNominationData) {
+    this.logger.log(
+      `Attempting to add a nomination with nominationID/nomination: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
+    );
     // const key = `answers:arenaId:${arenaId}`;
     // const path = ``;
 
-    const answers = await this.getAnswers(arenaId);
-    for (const [index, answer] of answers.entries()) {
-      if (answer.Q_id === nomination.Q_id && answer.text === nomination.text) {
-        this.logger.warn(
-          JSON.stringify(answer, null, 2) +
-            '  ' +
-            JSON.stringify(nomination, null, 2),
-        );
-        return await this.saveSolver(
-          { userId: nomination.userId, name: nomination.name },
-          arenaId,
-          index,
-          nomination.Q_id,
-        );
-      }
+    await this.NominationToDB({ arenaId, nominationId, nomination });
+    const answer = await this.getAnswers(arenaId, nomination.Q_id);
+    if (answer.text === nomination.text) {
+      this.logger.warn(answer.text + '  ' + nomination.text);
+
+      await this.updateRankings(nomination.userId, arenaId);
+
+      // return NEXT if the answer is right to switch question for players
+      return await this.saveSolver(
+        arenaId,
+        nomination,
+        nomination.Q_id,
+        nominationId,
+      );
+    }
+  }
+
+  async updateRankings(userId: string, arenaId: string) {
+    this.logger.log(
+      `Attempting to add a rankings with userId/arenaId: ${userId}/${arenaId}`,
+    );
+    try {
+      const key = `arenaId:${arenaId}`;
+      const path = `.rankings.${userId}`;
+
+      //increment it by 1
+      await this.redis.call('JSON.NUMINCRBY', key, path, 1);
+    } catch (e) {
+      this.logger.error(
+        `Failed to set RANK:with userId/arenaId: ${userId}/${arenaId} ERROR:${e}`,
+      );
     }
   }
 
   async saveSolver(
-    solver: Solver,
     arenaId: string,
-    index: number,
+    nomination: Nomination,
     Q_id: number,
+    nominationId: string,
   ) {
-    const data = {
-      userId: solver.userId,
-      name: solver.name,
-    };
+    delete nomination.Q_id;
+    delete nomination.text;
     try {
-      const x = await this.redis.call(
+      await this.redis.call(
         'JSON.SET',
         `answers:arenaId:${arenaId}`,
-        `.[${index}].solver`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
-        JSON.stringify(data),
+        `.Q_id:${Q_id}.${nominationId}`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
+        JSON.stringify(nomination),
       );
-      this.logger.fatal(x + ' ' + index);
       return 'NEXT'; // next to till all players to go to next question
     } catch (e) {
       this.logger.error(
-        `Failed to set SOLVER:${JSON.stringify(data, null, 2)} arenaId ${arenaId}`,
+        `Failed to set SOLVER:${JSON.stringify(nomination, null, 2)} arenaId ${arenaId} ERROR:${e}`,
       );
       throw new InternalServerErrorException(
         `Failed to get arenaId ${arenaId}`,
+      );
+    }
+  }
+
+  async NominationToDB({
+    arenaId,
+    nominationId,
+    nomination,
+  }: AddNominationData): Promise<Arena> {
+    this.logger.log(
+      `Attempting to add a nomination FOR DB with nominationID/nomination: ${nominationId}/${nomination.text} to arenaId: ${arenaId}`,
+    );
+
+    const key = `arenaId:${arenaId}`;
+    const nominationPath = `.nominations.${nominationId}`;
+
+    try {
+      await this.redis.call(
+        'JSON.SET',
+        key,
+        nominationPath,
+        JSON.stringify(nomination),
+      );
+
+      return this.getArena(arenaId);
+    } catch (e) {
+      this.logger.error(
+        `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to arenaId: ${arenaId}`,
+        e,
+      );
+      throw new InternalServerErrorException(
+        `Failed to add a nomination with nominationID/text: ${nominationId}/${nomination.text} to arenaId: ${arenaId}`,
+      );
+    }
+  }
+
+  async removeNomination(
+    arenaId: string,
+    nominationId: string,
+  ): Promise<Arena> {
+    this.logger.log(
+      `removing nominationID: ${nominationId} from poll: ${arenaId}`,
+    );
+
+    const key = `arenaId:${arenaId}`;
+    const key2 = `answers:arenaId:${arenaId}`;
+    const nominationPath = `.nominations.${nominationId}`;
+    const nominationPath2 = `.*.${nominationId}`;
+
+    try {
+      await this.redis.call('JSON.DEL', key, nominationPath);
+      await this.redis.call('JSON.DEL', key2, nominationPath2);
+
+      return this.getArena(arenaId);
+    } catch (e) {
+      this.logger.error(
+        `Failed to remove nominationID: ${nominationId} from poll: ${arenaId}`,
+        e,
+      );
+
+      throw new InternalServerErrorException(
+        `Failed to remove nominationID: ${nominationId} from poll: ${arenaId}`,
       );
     }
   }

@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Arena } from 'shared/arena-types';
 import { createArenaID, createNominationID, createUserID } from './ids';
-import { AddNominationFields, AddParticipantFields, RejoinArenaFields } from './types/types';
+import {
+  AddNominationFields,
+  AddParticipantFields,
+  RejoinArenaFields,
+} from './types/types';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
@@ -116,14 +120,34 @@ export class ArenaService {
     text,
     name,
   }: AddNominationFields): Promise<any> {
+    const options = {
+      timeZone: 'Asia/Baghdad',
+      hour12: true,
+      hour: '2-digit' as const,
+      minute: '2-digit' as const,
+      year: 'numeric' as const, // Add year
+      month: 'long' as const, // Add month
+      day: '2-digit' as const, // Add day
+    };
+    const timeInIraq = new Date().toLocaleDateString('en-US', options);
+    this.logger.error(timeInIraq);
     return this.arenaRepository.addNomination({
       arenaId,
+      nominationId: createNominationID(),
       nomination: {
         userId,
         Q_id,
         text,
         name,
+        time: timeInIraq,
       },
     });
+  }
+
+  async removeNomination(
+    arenaId: string,
+    nominationId: string,
+  ): Promise<Arena> {
+    return this.arenaRepository.removeNomination(arenaId, nominationId);
   }
 }

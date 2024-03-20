@@ -12,5 +12,3 @@ export interface answers {
   A_text: string;
   isCorrect: string;
 }
-
-

@@ -56,6 +56,7 @@ export type AddParticipantData = {
 
 export type AddNominationData = {
   arenaId: string;
+  nominationId: string;
   nomination: Nomination;
 };
 
@@ -66,7 +67,6 @@ export type AddParticipantRankingsData = {
 };
 
 export interface StoredAnswers {
-  Q_id: number;
   text: string;
   solver: Solver;
 }

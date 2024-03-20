@@ -150,15 +150,36 @@ export class SocketsGateway
     this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
 
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('remove_nomination')
+  async removeNomination(
+    @MessageBody('id') nominationId: string,
+    @ConnectedSocket() client: SocketWithAuth,
+  ): Promise<void> {
+    this.logger.debug(
+      `Attempting to remove nomination ${nominationId} from arena ${client.arenaId}`,
+    );
+
+    const updatedArena = await this.arenaService.removeNomination(
+      client.arenaId,
+      nominationId,
+    );
+
+    this.io.to(client.arenaId).emit('arena_updated', updatedArena);
+  }
+
   @SubscribeMessage('aaa')
   async findOne(
     @MessageBody() id: any,
     @ConnectedSocket() client: SocketWithAuth,
   ) {
     console.log(id);
-    const req = await this.arenaRepository.getAnswers(id.id);
+    // const req = await this.arenaRepository.getPoints(
+    //   `.rankings.${client.userId},`,
+    //   `arenaId:${client.arenaId}`,
+    // );
 
-    this.io.to(client.arenaId).emit('arena_updated', req);
+    // this.io.to(client.arenaId).emit('arena_updated', req);
   }
 
   @SubscribeMessage('updateSocket')
