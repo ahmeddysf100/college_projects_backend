@@ -26,17 +26,17 @@ export type Results = Array<{
   score: number;
 }>;
 
-export interface Arena {
-  id: string;
-  arenaQear: ArenaQear[];
-  numOfPlayers: number;
-  participants: Nominations;
-  nominations: Nominations;
-  rankings: Nominations;
-  results: any[];
-  adminId: string;
-  hasStarted: boolean;
-}
+// export interface Arena {
+//   id: string;
+//   arenaQear: ArenaQear[];
+//   numOfPlayers: number;
+//   participants: Nominations;
+//   nominations: Nominations;
+//   rankings: Nominations;
+//   results: any[];
+//   adminId: string;
+//   hasStarted: boolean;
+// }
 
 export interface ArenaQear {
   id: number;

@@ -12,9 +12,15 @@ export interface Arena {
   roundTime: number;
   participants: Nominations;
   nominations: Nominations;
-  rankings: Nominations;
+  rankings: Rankings[];
   results: any[];
 }
+
+type NominationID = string;
+
+export type Rankings = {
+  [userID: string]: NominationID[];
+};
 
 export interface ArenaQear {
   id: number;

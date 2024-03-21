@@ -1,5 +1,6 @@
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -13,8 +14,8 @@ import {
   Solver,
   StoredAnswers,
 } from './types/types';
-import { Arena, ArenaQear, Nomination } from 'shared';
-import { CreateArena } from './types/createArena';
+import { ArenaQear, Nomination } from 'shared';
+import { Arena, CreateArena } from './types/createArena';
 
 @Injectable()
 export class ArenaRepository {
@@ -43,7 +44,7 @@ export class ArenaRepository {
       participants: {},
       nominations: {},
       rankings: {},
-      results: [],
+      results: {},
     };
     this.logger.log(
       `Creating new Arena: ${JSON.stringify(initialArena)} with TTL ${
@@ -164,7 +165,7 @@ export class ArenaRepository {
     }
   }
 
-  async getArena(arenaId: string): Promise<any> {
+  async getArena(arenaId: string): Promise<Arena> {
     this.logger.log(`Attempting to get Arena with: ${arenaId}`);
 
     const key = `arenaId:${arenaId}`;
@@ -195,7 +196,7 @@ export class ArenaRepository {
     arenaId,
     userId,
     name,
-  }: AddParticipantData): Promise<Arena> {
+  }: AddParticipantData): Promise<Arena | string> {
     this.logger.log(
       `Attempting to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
     );
@@ -204,7 +205,12 @@ export class ArenaRepository {
     const participantPath = `.participants.${userId}`;
 
     try {
-      await this.setRankings(arenaId, userId);
+      const started = await this.isArenaStarted(arenaId);
+
+      if (started) {
+        return `started`;
+      }
+      await this.setRankings(arenaId, userId, name);
 
       await this.redis.call(
         'JSON.SET',
@@ -224,16 +230,39 @@ export class ArenaRepository {
     }
   }
 
-  async setRankings(arenaId: string, userId: string) {
+  async isArenaStarted(arenaId: string) {
+    this.logger.log(`attempting to chek is arena started:${arenaId}`);
+    try {
+      const state = await this.getArena(arenaId);
+      if (state.hasStarted) {
+        this.logger.error('started!!!!!!!!!!');
+        // throw new BadRequestException('The arena has already started');
+        return true;
+      }
+    } catch (e) {
+      this.logger.error(`Failed to to chek is arena started:${arenaId}\n${e}`);
+      throw new InternalServerErrorException(
+        `Failed to to chek is arena started:${arenaId}\n${e}`,
+      );
+    }
+  }
+
+  async setRankings(arenaId: string, userId: string, name: string) {
     try {
       this.logger.debug(
-        `attempting to set RANKING to arenaId:${arenaId} / userId:${userId}`,
+        `attempting to set RANKING to arenaId:${arenaId} / userId:${userId}/name:${name}`,
       );
 
       const key = `arenaId:${arenaId}`;
-      const path = `.rankings.${userId}`;
-
-      await this.redis.call('JSON.SET', key, path, 0);
+      const path = `.rankings.${name}`;
+      const x = await this.redis.call('JSON.TYPE', key, path);
+      // this.logger.fatal(`aaaaaaaaaa ${x}`);
+      if (x === null) {
+        this.logger.debug(
+          `NO intial value attempting to set .rankings.${name} to 0`,
+        );
+        await this.redis.call('JSON.SET', key, path, 0);
+      }
     } catch (e) {
       this.logger.error(
         ` faild in SETTING ranking to arenaId:${arenaId} / userId:${userId} \nERROR:${e}`,
@@ -275,7 +304,7 @@ export class ArenaRepository {
     const answer = await this.getAnswers(arenaId, nomination.Q_id);
     if (answer.text === nomination.text) {
       this.logger.warn(answer.text + '  ' + nomination.text);
-
+      // update ranking for user by incr by 1
       await this.updateRankings(nomination.userId, arenaId);
 
       // return NEXT if the answer is right to switch question for players
@@ -389,6 +418,61 @@ export class ArenaRepository {
 
       throw new InternalServerErrorException(
         `Failed to remove nominationID: ${nominationId} from poll: ${arenaId}`,
+      );
+    }
+  }
+
+  async startArena(arenaId: string): Promise<Arena> {
+    this.logger.log(`setting hasStarted for arena: ${arenaId}`);
+
+    const key = `arenaId:${arenaId}`;
+
+    try {
+      await this.redis.call(
+        'JSON.SET',
+        key,
+        '.hasStarted',
+        JSON.stringify(true),
+      );
+
+      return this.getArena(arenaId);
+    } catch (e) {
+      this.logger.error(`Failed set hasStarted for arena: ${arenaId}`, e);
+      throw new InternalServerErrorException(
+        'The was an error starting the arena',
+      );
+    }
+  }
+
+  async getResult(arenaId: string): Promise<unknown> {
+    this.logger.log(`attempting to get RESULT for arena: ${arenaId}`);
+
+    try {
+      const arena = await this.getArena(arenaId);
+      let temp = [];
+      temp = arena.rankings;
+
+      const { key: maxKey, value: maxValue } = Object.entries(temp).reduce(
+        (acc, [key, value]) => {
+          return value > acc.value ? { key, value } : acc;
+        },
+        { key: null, value: Number.MIN_SAFE_INTEGER },
+      );
+
+      const req = await this.redis.call(
+        'JSON.SET',
+        `arenaId:${arenaId}`,
+        `.results`,
+        JSON.stringify({ maxKey: maxKey, maxValue: maxValue }),
+      );
+
+      if (req === 'OK') {
+        return { maxKey: maxKey, maxValue: maxValue };
+      }
+    } catch (e) {
+      this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, e);
+      throw new InternalServerErrorException(
+        `Failed getting RESULT for arena: ${arenaId}`,
       );
     }
   }

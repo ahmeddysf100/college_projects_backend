@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Arena } from 'shared/arena-types';
+import { Nomination } from 'shared/arena-types';
 import { createArenaID, createNominationID, createUserID } from './ids';
 import {
   AddNominationFields,
@@ -11,6 +11,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
 import { ArenaRepository } from './arena.repository';
+import { Arena } from './types/createArena';
 
 @Injectable()
 export class ArenaService {
@@ -93,7 +94,9 @@ export class ArenaService {
     return joinedArena;
   }
 
-  async addParticipant(addParticipant: AddParticipantFields): Promise<Arena> {
+  async addParticipant(
+    addParticipant: AddParticipantFields,
+  ): Promise<Arena | string> {
     return this.arenaRepository.addParticipant(addParticipant);
   }
 
@@ -149,5 +152,15 @@ export class ArenaService {
     nominationId: string,
   ): Promise<Arena> {
     return this.arenaRepository.removeNomination(arenaId, nominationId);
+  }
+
+  async startArena(adminId: string): Promise<Arena> {
+    return this.arenaRepository.startArena(adminId);
+  }
+
+  async computeResults(arenaId: string): Promise<any> {
+    const req = await this.arenaRepository.getResult(arenaId);
+
+    return req;
   }
 }

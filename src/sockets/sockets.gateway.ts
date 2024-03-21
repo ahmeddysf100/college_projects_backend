@@ -75,7 +75,12 @@ export class SocketsGateway
       name: client.name,
     });
 
-    this.io.to(roomName).emit('arena_updated', updateArena);
+    if (updateArena === 'started') {
+      client.emit('exception', `arena with id:${client.arenaId} has started`);
+      client.disconnect(true);
+    } else {
+      this.io.to(roomName).emit('arena_updated', updateArena);
+    }
   }
 
   async handleDisconnect(client: SocketWithAuth) {
@@ -166,6 +171,26 @@ export class SocketsGateway
     );
 
     this.io.to(client.arenaId).emit('arena_updated', updatedArena);
+  }
+
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('start_arena')
+  async startVote(@ConnectedSocket() client: SocketWithAuth): Promise<void> {
+    this.logger.debug(`Attempting to start voting for poll: ${client.arenaId}`);
+
+    const updatedPoll = await this.arenaService.startArena(client.arenaId);
+
+    this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
+  }
+
+  @UseGuards(GatewayAdminGuard)
+  @SubscribeMessage('close_arena')
+  async closePoll(@ConnectedSocket() client: SocketWithAuth): Promise<void> {
+    this.logger.debug(`Closing arena: ${client.arenaId} and computing results`);
+
+    const updatedPoll = await this.arenaService.computeResults(client.arenaId);
+
+    this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
 
   @SubscribeMessage('aaa')
