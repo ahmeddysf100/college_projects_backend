@@ -273,8 +273,13 @@ export class ArenaRepository {
 
     const key = `arenaId:${arenaId}`;
     const participantPath = `.participants.${userId}`;
-
     try {
+      const isParticipant = await this.isParticipant(arenaId, userId, name);
+
+      if (isParticipant) {
+        return `user with id/name:${userId}/${name} REJIONED`;
+      }
+
       const started = await this.isArenaStarted(arenaId);
 
       if (started) {
@@ -294,10 +299,27 @@ export class ArenaRepository {
       this.logger.error(
         `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
       );
-      // throw new InternalServerErrorException(
-      //   `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
-      // );
+      throw new InternalServerErrorException(
+        `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
+      );
     }
+  }
+
+  async isParticipant(arenaId: string, userId: string, name: string) {
+    try {
+      this.logger.debug(
+        `attemption to cheack if user is participant id/name:${userId}/${name}`,
+      );
+      const key = `arenaId:${arenaId}`;
+      const path = `.nominations.${userId}`;
+      const x = await this.redis.call('JSON.TYPE', key, path);
+      if (x === null) {
+        return false;
+      } else {
+        this.logger.log(`user:${userId}//${name} is REJOINED`);
+        return true;
+      }
+    } catch (e) {}
   }
 
   async isArenaStarted(arenaId: string) {
@@ -308,6 +330,8 @@ export class ArenaRepository {
         this.logger.error('started!!!!!!!!!!');
         // throw new BadRequestException('The arena has already started');
         return true;
+      } else {
+        return false;
       }
     } catch (e) {
       this.logger.error(`Failed to to chek is arena started:${arenaId}\n${e}`);
@@ -344,16 +368,15 @@ export class ArenaRepository {
     arenaId: string,
     userId: string,
   ): Promise<Arena | boolean> {
-    this.logger.log(`removing userId: ${userId} from poll: ${arenaId}`);
-
     const key = `arenaId:${arenaId}`;
     const participantPath = `.participants.${userId}`;
 
     try {
       const start = await this.getArenaStart(arenaId);
-      if (start) {
+      if (start === true) {
         return false;
       } else {
+        this.logger.debug(`removing userId: ${userId} from poll: ${arenaId}`);
         await this.redis.call('JSON.DEL', key, participantPath);
         return this.getArena(arenaId);
       }
@@ -384,7 +407,7 @@ export class ArenaRepository {
       // update ranking for user by incr by 1
       await this.updateRankings(nomination.userId, arenaId);
 
-      // return NEXT if the answer is right to switch question for players
+      // return NEXT question because the answer is right to switch question for players
       return await this.saveSolver(
         arenaId,
         nomination,
@@ -426,7 +449,7 @@ export class ArenaRepository {
         `.Q_id:${Q_id}.${nominationId}`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
         JSON.stringify(nomination),
       );
-      return 'NEXT'; // next to till all players to go to next question
+      return await this.getGear(arenaId);
     } catch (e) {
       this.logger.error(
         `Failed to set SOLVER:${JSON.stringify(nomination, null, 2)} arenaId ${arenaId} ERROR:${e}`,
@@ -528,7 +551,13 @@ export class ArenaRepository {
     const key = `arenaId:${arenaId}`;
 
     try {
-      return (await this.redis.call('JSON.GET', key, '.hasStarted')) as boolean;
+      const req = (await this.redis.call(
+        'JSON.GET',
+        key,
+        '.hasStarted',
+      )) as boolean;
+      this.logger.log(`START=>${req}`);
+      return req;
     } catch (e) {
       this.logger.error(`Failed GET hasStarted for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
