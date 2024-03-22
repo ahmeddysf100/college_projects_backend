@@ -103,7 +103,7 @@ export class ArenaService {
   async removeParticipant(
     arenaId: string,
     userId: string,
-  ): Promise<Arena | void> {
+  ): Promise<Arena | boolean> {
     const poll = await this.arenaRepository.getArena(arenaId);
 
     // if arena did not start you can remove players
