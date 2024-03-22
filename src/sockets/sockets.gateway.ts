@@ -77,7 +77,7 @@ export class SocketsGateway
 
     if (updateArena === 'started') {
       client.emit('exception', `arena with id:${client.arenaId} has started`);
-      client.disconnect(true);
+      client.disconnect();
     } else {
       this.io.to(roomName).emit('arena_updated', updateArena);
     }
@@ -176,7 +176,7 @@ export class SocketsGateway
   @UseGuards(GatewayAdminGuard)
   @SubscribeMessage('start_arena')
   async startVote(@ConnectedSocket() client: SocketWithAuth): Promise<void> {
-    this.logger.debug(`Attempting to start voting for poll: ${client.arenaId}`);
+    this.logger.debug(`Attempting to start arena: ${client.arenaId}`);
 
     const updatedPoll = await this.arenaService.startArena(client.arenaId);
 

@@ -19,6 +19,7 @@ import { Arena, CreateArena } from './types/createArena';
 
 @Injectable()
 export class ArenaRepository {
+  [x: string]: any;
   private readonly ttl: string;
   private readonly logger = new Logger(ArenaRepository.name);
 
@@ -132,7 +133,7 @@ export class ArenaRepository {
         `.totalStages`,
       );
 
-      if (currentStage <= totalStages) {
+      if (currentStage < totalStages) {
         this.logger.debug(
           `currentStages:${currentStage} <= totalStages:${totalStages}`,
         );
@@ -339,16 +340,23 @@ export class ArenaRepository {
     }
   }
 
-  async removeParticipant(arenaId: string, userId: string): Promise<Arena> {
+  async removeParticipant(
+    arenaId: string,
+    userId: string,
+  ): Promise<Arena | boolean> {
     this.logger.log(`removing userId: ${userId} from poll: ${arenaId}`);
 
     const key = `arenaId:${arenaId}`;
     const participantPath = `.participants.${userId}`;
 
     try {
-      await this.redis.call('JSON.DEL', key, participantPath);
-
-      return this.getArena(arenaId);
+      const start = await this.getArenaStart(arenaId);
+      if (start) {
+        return false;
+      } else {
+        await this.redis.call('JSON.DEL', key, participantPath);
+        return this.getArena(arenaId);
+      }
     } catch (e) {
       this.logger.error(
         `Failed to remove userId: ${userId} from poll: ${arenaId}`,
@@ -465,16 +473,17 @@ export class ArenaRepository {
     arenaId: string,
     nominationId: string,
   ): Promise<Arena> {
-    this.logger.log(
-      `removing nominationID: ${nominationId} from poll: ${arenaId}`,
-    );
-
     const key = `arenaId:${arenaId}`;
-    const key2 = `answers:arenaId:${arenaId}`;
     const nominationPath = `.nominations.${nominationId}`;
+
+    const key2 = `answers:arenaId:${arenaId}`;
     const nominationPath2 = `.*.${nominationId}`;
 
     try {
+      this.logger.log(
+        `removing nominationID: ${nominationId} from poll: ${arenaId}`,
+      );
+
       await this.redis.call('JSON.DEL', key, nominationPath);
       await this.redis.call('JSON.DEL', key2, nominationPath2);
 
@@ -509,6 +518,21 @@ export class ArenaRepository {
       this.logger.error(`Failed set hasStarted for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
         'The was an error starting the arena',
+      );
+    }
+  }
+
+  async getArenaStart(arenaId: string): Promise<boolean> {
+    this.logger.log(`getting hasStarted for arena: ${arenaId}`);
+
+    const key = `arenaId:${arenaId}`;
+
+    try {
+      return (await this.redis.call('JSON.GET', key, '.hasStarted')) as boolean;
+    } catch (e) {
+      this.logger.error(`Failed GET hasStarted for arena: ${arenaId}`, e);
+      throw new InternalServerErrorException(
+        `The was an error GET start the arena\n${e}`,
       );
     }
   }
