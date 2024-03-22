@@ -38,7 +38,7 @@ export type Results = Array<{
 //   hasStarted: boolean;
 // }
 
-export interface ArenaQear {
+export interface ArenaGear {
   id: number;
   Q_imageUrl: null | string;
   Q_text: null | string;

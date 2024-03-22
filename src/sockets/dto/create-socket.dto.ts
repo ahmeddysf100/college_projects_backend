@@ -17,7 +17,7 @@ export class CreateSocketDto {
 
 export class CreateArenaDto {
   @IsNotEmpty()
-  arenaQear: JsonArray;
+  arenaGear: JsonArray;
 
   @IsNumber()
   @IsNotEmpty()

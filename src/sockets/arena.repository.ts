@@ -14,7 +14,7 @@ import {
   Solver,
   StoredAnswers,
 } from './types/types';
-import { ArenaQear, Nomination } from 'shared';
+import { ArenaGear, Nomination } from 'shared';
 import { Arena, CreateArena } from './types/createArena';
 
 @Injectable()
@@ -36,7 +36,7 @@ export class ArenaRepository {
   ) {
     const initialArena = {
       id: arenaId,
-      arenaQear: createArenaDto.arenaQear,
+      // arenaGear: createArenaDto.arenaGear,
       numOfPlayers: createArenaDto.numOfPlayers,
       adminId: userId,
       hasStarted: createArenaDto.hasStarted,
@@ -45,6 +45,8 @@ export class ArenaRepository {
       nominations: {},
       rankings: {},
       results: {},
+      totalStages: createArenaDto.arenaGear.length,
+      currentStage: 0,
     };
     this.logger.log(
       `Creating new Arena: ${JSON.stringify(initialArena)} with TTL ${
@@ -54,13 +56,13 @@ export class ArenaRepository {
 
     const key = `arenaId:${arenaId}`;
 
-    await this.storeAnswers(createArenaDto.arenaQear as any, arenaId);
-    this.logger.fatal(createArenaDto.arenaQear.length);
-    // Clean up createArenaDto.arenaQear
-    // Assuming createArenaDto.arenaQear is defined and contains the array of questions
+    await this.storeAnswers(createArenaDto.arenaGear as any, arenaId);
+    this.logger.fatal(createArenaDto.arenaGear.length);
+    // Clean up createArenaDto.arenaGear
+    // Assuming createArenaDto.arenaGear is defined and contains the array of questions
 
-    // Clean up the arenaQear array
-    createArenaDto.arenaQear.forEach((question: any) => {
+    // Clean up the arenaGear array
+    createArenaDto.arenaGear.forEach((question: any) => {
       // Determine the question type based on the presence of correctAnswer
       if (question.correctAnswer) {
         question.type = 'single';
@@ -76,7 +78,8 @@ export class ArenaRepository {
       question.correctAnswer = null;
       question.AnswerExplanation = null;
     });
-
+    this.logger.log(`newGear:\n${createArenaDto.arenaGear}`);
+    await this.storeGear(createArenaDto.arenaGear, arenaId);
     try {
       await this.redis
         .multi([
@@ -94,7 +97,73 @@ export class ArenaRepository {
     }
   }
 
-  async storeAnswers(questions: ArenaQear[], arenaId: string): Promise<void> {
+  async storeGear(questions: any[], arenaId: string): Promise<void> {
+    this.logger.debug(
+      `attempting to store questions to Gears:arenaId:${arenaId}`,
+    );
+    try {
+      const key = `Gears:arenaId:${arenaId}`;
+      await this.redis
+        .multi([
+          ['send_command', 'JSON.SET', key, '.', JSON.stringify(questions)],
+          ['expire', key, this.ttl],
+        ])
+        .exec();
+    } catch (e) {
+      this.logger.error(
+        `Failed to store GEAR ${JSON.stringify(questions)}\n${e}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to store GEAR ${JSON.stringify(questions)}`,
+      );
+    }
+  }
+
+  async getGear(arenaId: string): Promise<any> {
+    try {
+      const currentStage = await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.currentStage`,
+      );
+      const totalStages = await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.totalStages`,
+      );
+
+      if (currentStage <= totalStages) {
+        this.logger.debug(
+          `currentStages:${currentStage} <= totalStages:${totalStages}`,
+        );
+        await this.redis.call(
+          'JSON.NUMINCRBY',
+          `arenaId:${arenaId}`,
+          `.currentStage`,
+          1,
+        );
+        this.logger.debug(`increment currentStage:${currentStage} by 1`);
+        this.logger.debug(
+          `attempting to GET question_num:${currentStage} from Gears:arenaId:${arenaId}`,
+        );
+        return await this.redis.call(
+          'JSON.GET',
+          `Gears:arenaId:${arenaId}`,
+          `.[${currentStage}]`,
+        );
+      } else {
+        this.logger.debug(
+          `currentStages:${currentStage} >>> totalStages:${totalStages}`,
+        );
+        return 'FINSHED';
+      }
+    } catch (e) {
+      this.logger.error(`Failed to GET GEAR \n${e}`);
+      throw new InternalServerErrorException(`Failed to GET GEAR\n${e}`);
+    }
+  }
+
+  async storeAnswers(questions: ArenaGear[], arenaId: string): Promise<void> {
     const answerObj = {}; // Create an object to store each answer
     for (const question of questions) {
       // Check if the question has a correct answer
@@ -435,7 +504,7 @@ export class ArenaRepository {
         JSON.stringify(true),
       );
 
-      return this.getArena(arenaId);
+      return this.getGear(arenaId);
     } catch (e) {
       this.logger.error(`Failed set hasStarted for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
