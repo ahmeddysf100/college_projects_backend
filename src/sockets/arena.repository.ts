@@ -171,6 +171,7 @@ export class ArenaRepository {
       if (question.correctAnswer) {
         answerObj[`Q_id:${question.id}`] = {
           text: question.correctAnswer,
+          solved: false,
         };
       }
 
@@ -180,6 +181,7 @@ export class ArenaRepository {
         // console.warn('wweeww', correctAnswers);
         answerObj[`Q_id:${question.id}`] = {
           text: correctAnswers[0].A_text,
+          solved: false,
         };
       }
     }
@@ -276,13 +278,14 @@ export class ArenaRepository {
     try {
       const isParticipant = await this.isParticipant(arenaId, userId, name);
 
-      if (isParticipant) {
+      if (isParticipant === true) {
         return `user with id/name:${userId}/${name} REJIONED`;
       }
 
       const started = await this.isArenaStarted(arenaId);
 
       if (started) {
+        this.logger.error(started);
         return `started`;
       }
       await this.setRankings(arenaId, userId, name);
@@ -311,8 +314,10 @@ export class ArenaRepository {
         `attemption to cheack if user is participant id/name:${userId}/${name}`,
       );
       const key = `arenaId:${arenaId}`;
-      const path = `.nominations.${userId}`;
+      const path = `..${userId}`;
       const x = await this.redis.call('JSON.TYPE', key, path);
+      this.logger.log(`user:${userId}//${name} is ${x}`);
+
       if (x === null) {
         return false;
       } else {
@@ -322,19 +327,27 @@ export class ArenaRepository {
     } catch (e) {}
   }
 
-  async isArenaStarted(arenaId: string) {
-    this.logger.log(`attempting to chek is arena started:${arenaId}`);
+  async isArenaStarted(arenaId: string): Promise<boolean> {
+    this.logger.log(`attempting to cheack is arena STARTED:${arenaId}`);
     try {
-      const state = await this.getArena(arenaId);
-      if (state.hasStarted) {
-        this.logger.error('started!!!!!!!!!!');
-        // throw new BadRequestException('The arena has already started');
-        return true;
-      } else {
-        return false;
-      }
+      //default value is false
+      const state = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.hasStarted`,
+      )) as string;
+      this.logger.fatal(`state of start:${state}!!!!!!!!!!`);
+      return state === 'true' ? true : false;
+      // if (state) {
+      //   this.logger.fatal('started!!!!!!!!!!');
+      //   return true;
+      // } else {
+      //   return false;
+      // }
     } catch (e) {
-      this.logger.error(`Failed to to chek is arena started:${arenaId}\n${e}`);
+      this.logger.error(
+        `Failed to to cheack is arena started:${arenaId}\n${e}`,
+      );
       throw new InternalServerErrorException(
         `Failed to to chek is arena started:${arenaId}\n${e}`,
       );
@@ -372,7 +385,7 @@ export class ArenaRepository {
     const participantPath = `.participants.${userId}`;
 
     try {
-      const start = await this.getArenaStart(arenaId);
+      const start = await this.isArenaStarted(arenaId);
       if (start === true) {
         return false;
       } else {
@@ -397,22 +410,33 @@ export class ArenaRepository {
     this.logger.log(
       `Attempting to add a nomination with nominationID/nomination: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
     );
-    // const key = `answers:arenaId:${arenaId}`;
-    // const path = ``;
+    // if arena did not start you can not nominate
+    const isStarted = await this.isArenaStarted(arenaId);
+    if (isStarted === true) {
+      // if answer is solved we do not have to cheack if is correct or not
+      const isSolved = await this.isSolved(arenaId, nomination.Q_id);
+      if (isSolved === false) {
+        await this.NominationToDB({ arenaId, nominationId, nomination });
 
-    await this.NominationToDB({ arenaId, nominationId, nomination });
-    const answer = await this.getAnswers(arenaId, nomination.Q_id);
-    if (answer.text === nomination.text) {
-      this.logger.warn(answer.text + '  ' + nomination.text);
-      // update ranking for user by incr by 1
-      await this.updateRankings(nomination.userId, arenaId);
+        const answer = await this.getAnswers(arenaId, nomination.Q_id);
+        if (answer.text === nomination.text) {
+          this.logger.warn(answer.text + '  ' + nomination.text);
 
-      // return NEXT question because the answer is right to switch question for players
-      return await this.saveSolver(
-        arenaId,
-        nomination,
-        nomination.Q_id,
-        nominationId,
+          // update ranking for user by incr by 1
+          await this.updateRankings(nomination.userId, arenaId);
+
+          // return next question because the answer is right to switch question for players
+          return await this.saveSolver(
+            arenaId,
+            nomination,
+            nomination.Q_id,
+            nominationId,
+          );
+        }
+      }
+    } else if (isStarted === false) {
+      throw new BadRequestException(
+        `you can not send answer becuase arenaId:${arenaId} did not START!!!`,
       );
     }
   }
@@ -434,6 +458,23 @@ export class ArenaRepository {
     }
   }
 
+  async isSolved(arenaId: string, Q_id: number): Promise<boolean> {
+    try {
+      this.logger.debug(
+        ` attempting to cheack if question:${Q_id} already solved`,
+      );
+      const key = `answers:arenaId:${arenaId}`;
+      //set solved to true to make sure only one user submite answer
+      const solved = (await this.redis.call(
+        'JSON.GET',
+        key,
+        `Q_id:${Q_id}.solved`,
+      )) as string;
+      this.logger.fatal(`answer for Q_id:${Q_id} is:${solved}`);
+      return solved === 'true' ? true : false;
+    } catch (e) {}
+  }
+
   async saveSolver(
     arenaId: string,
     nomination: Nomination,
@@ -442,10 +483,19 @@ export class ArenaRepository {
   ) {
     delete nomination.Q_id;
     delete nomination.text;
+    const key = `answers:arenaId:${arenaId}`;
     try {
+      //set solved to true to make sure only one user submite answer
       await this.redis.call(
         'JSON.SET',
-        `answers:arenaId:${arenaId}`,
+        key,
+        `Q_id:${Q_id}.solved`,
+        JSON.stringify(true),
+      );
+      // add info of iser who sloved the question
+      await this.redis.call(
+        'JSON.SET',
+        key,
         `.Q_id:${Q_id}.${nominationId}`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
         JSON.stringify(nomination),
       );
@@ -541,27 +591,6 @@ export class ArenaRepository {
       this.logger.error(`Failed set hasStarted for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
         'The was an error starting the arena',
-      );
-    }
-  }
-
-  async getArenaStart(arenaId: string): Promise<boolean> {
-    this.logger.log(`getting hasStarted for arena: ${arenaId}`);
-
-    const key = `arenaId:${arenaId}`;
-
-    try {
-      const req = (await this.redis.call(
-        'JSON.GET',
-        key,
-        '.hasStarted',
-      )) as boolean;
-      this.logger.log(`START=>${req}`);
-      return req;
-    } catch (e) {
-      this.logger.error(`Failed GET hasStarted for arena: ${arenaId}`, e);
-      throw new InternalServerErrorException(
-        `The was an error GET start the arena\n${e}`,
       );
     }
   }
