@@ -147,11 +147,12 @@ export class ArenaRepository {
         this.logger.debug(
           `attempting to GET question_num:${currentStage} from Gears:arenaId:${arenaId}`,
         );
-        return await this.redis.call(
+        const req = (await this.redis.call(
           'JSON.GET',
           `Gears:arenaId:${arenaId}`,
           `.[${currentStage}]`,
-        );
+        )) as any;
+        return JSON.parse(req);
       } else {
         this.logger.debug(
           `currentStages:${currentStage} >>> totalStages:${totalStages}`,
@@ -275,11 +276,14 @@ export class ArenaRepository {
 
     const key = `arenaId:${arenaId}`;
     const participantPath = `.participants.${userId}`;
+    const value = { name: name, isOnline: true };
     try {
       const isParticipant = await this.isParticipant(arenaId, userId, name);
 
       if (isParticipant === true) {
-        return `user with id/name:${userId}/${name} REJIONED`;
+        await this.toggleIsOnlineTo(true, arenaId, userId);
+        // return `user with id/name:${userId}/${name} REJIONED`; //return this message with getArena(arenaId) to users or admin as notifacions
+        return this.getArena(arenaId);
       }
 
       const started = await this.isArenaStarted(arenaId);
@@ -294,7 +298,7 @@ export class ArenaRepository {
         'JSON.SET',
         key,
         participantPath,
-        JSON.stringify(name),
+        JSON.stringify(value),
       );
 
       return this.getArena(arenaId);
@@ -314,7 +318,7 @@ export class ArenaRepository {
         `attemption to cheack if user is participant id/name:${userId}/${name}`,
       );
       const key = `arenaId:${arenaId}`;
-      const path = `..${userId}`;
+      const path = `.participants.${userId}`;
       const x = await this.redis.call('JSON.TYPE', key, path);
       this.logger.log(`user:${userId}//${name} is ${x}`);
 
@@ -386,8 +390,10 @@ export class ArenaRepository {
 
     try {
       const start = await this.isArenaStarted(arenaId);
+      this.logger.error(`aaaaaaaaa ${start}`);
       if (start === true) {
-        return false;
+        await this.toggleIsOnlineTo(false, arenaId, userId);
+        return this.getArena(arenaId);
       } else {
         this.logger.debug(`removing userId: ${userId} from poll: ${arenaId}`);
         await this.redis.call('JSON.DEL', key, participantPath);
@@ -399,6 +405,30 @@ export class ArenaRepository {
         e,
       );
       throw new InternalServerErrorException('Failed to remove participant');
+    }
+  }
+
+  async toggleIsOnlineTo(
+    isOnline: boolean,
+    arenaId: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      const req = (await this.redis.call(
+        'JSON.SET',
+        `arenaId:${arenaId}`,
+        `.participants.${userId}.isOnline`,
+        JSON.stringify(isOnline),
+      )) as string;
+      this.logger.debug(
+        `attemption to TOGGLE .participants.${userId}.isOnline to ${req}`,
+      );
+    } catch (e) {
+      this.logger.error(
+        `Failed to TOGGLE userId: ${userId} from arena: ${arenaId}`,
+        e,
+      );
+      throw new InternalServerErrorException('Failed to TOGGLE participant');
     }
   }
 

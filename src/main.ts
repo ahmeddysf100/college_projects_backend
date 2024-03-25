@@ -5,12 +5,14 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { SocketIOAdapter } from './socket-io-adapter';
 import { ConfigService } from '@nestjs/config';
+import { ArenaRepository } from './sockets/arena.repository';
 
 async function bootstrap() {
   const logger = new Logger('Main (main.ts)');
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
+  const arenaRepository = app.get(ArenaRepository);
   const port = parseInt(configService.get('PORT'));
   // const clientPort = parseInt(configService.get('CLIENT_PORT'));
 
@@ -30,7 +32,9 @@ async function bootstrap() {
   // const document = SwaggerModule.createDocument(app, config);
   // SwaggerModule.setup('api', app, document);
 
-  app.useWebSocketAdapter(new SocketIOAdapter(app, configService));
+  app.useWebSocketAdapter(
+    new SocketIOAdapter(app, configService, arenaRepository),
+  );
 
   await app.listen(port);
 

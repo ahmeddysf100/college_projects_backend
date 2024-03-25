@@ -104,16 +104,16 @@ export class ArenaService {
     arenaId: string,
     userId: string,
   ): Promise<Arena | boolean> {
-    const poll = await this.arenaRepository.getArena(arenaId);
+    // const poll = await this.arenaRepository.getArena(arenaId);
 
     // if arena did not start you can remove players
-    if (!poll.hasStarted) {
-      const updatedPoll = await this.arenaRepository.removeParticipant(
-        arenaId,
-        userId,
-      );
-      return updatedPoll;
-    }
+    // if (!poll.hasStarted) {
+    const updatedPoll = await this.arenaRepository.removeParticipant(
+      arenaId,
+      userId,
+    );
+    return updatedPoll;
+    // }
   }
 
   async addNomination({

@@ -46,7 +46,8 @@ export class SocketsGateway
     this.logger.log(`Websocket Gateway initialized.`);
   }
 
-  async handleConnection(client: SocketWithAuth, ...args: any[]) {
+  // async handleConnection(client: SocketWithAuth, ...args: any[]) {
+  async handleConnection(client: SocketWithAuth) {
     const sockets = this.io.sockets;
     this.logger.debug(
       `Socket connected with userName: ${client.name}, arenaId: ${client.arenaId}`,
@@ -77,7 +78,7 @@ export class SocketsGateway
 
     if (updateArena === 'started') {
       client.emit('exception', `arena with id:${client.arenaId} has started`);
-      client.disconnect();
+      client.disconnect(true);
     } else {
       this.io.to(roomName).emit('arena_updated', updateArena);
     }
@@ -100,9 +101,6 @@ export class SocketsGateway
     this.logger.debug(
       `Total clients connected to room '${roomName}': ${clientCount}`,
     );
-
-    // updatedPoll could be undefined if the the poll already started
-    // in this case, the socket is disconnect, but no the poll state
 
     if (updatedArena) {
       this.io.to(arenaId).emit('arena_updated', updatedArena);

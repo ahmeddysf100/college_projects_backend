@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   INestApplicationContext,
   Logger,
   UnauthorizedException,
@@ -9,6 +10,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Server, ServerOptions } from 'socket.io';
 import { SocketWithAuth } from './sockets/types/types';
 import { WsUnauthorizedException } from './exceptions/ws-exceptions';
+import { ArenaRepository } from './sockets/arena.repository';
 
 // to remember watch this https://youtu.be/tUNaSRa5CFA?si=J60hQL5XRQZXZ8Y2
 
@@ -17,6 +19,7 @@ export class SocketIOAdapter extends IoAdapter {
   constructor(
     private app: INestApplicationContext,
     private configService: ConfigService,
+    private arenaRepository: ArenaRepository,
   ) {
     super(app);
   }
@@ -46,6 +49,15 @@ export class SocketIOAdapter extends IoAdapter {
     const server: Server = super.createIOServer(port, optionsWithCORS);
 
     server.of('arena').use(createTokenMiddleware(jwtService, this.logger)); // define socket.io middleWare
+    server
+      .of('arena')
+      .use(
+        NoNewUsersWhenArenaStartedMiddleware(
+          jwtService,
+          this.logger,
+          this.arenaRepository,
+        ),
+      ); // define socket.io middleWare
 
     return server;
   }
@@ -58,7 +70,9 @@ const createTokenMiddleware =
     const token =
       socket.handshake.auth.token || socket.handshake.headers['token'];
 
-    logger.debug(`Validating auth token before connection: ${token}`);
+    logger.debug(
+      `Validating auth token this before connection to scoket \n token: ${token}`,
+    );
 
     try {
       const payload = jwtService.verify(token);
@@ -66,6 +80,46 @@ const createTokenMiddleware =
       socket.arenaId = payload.arenaId;
       socket.name = payload.name;
       next(); // if user authoriazed go to next func in gateway or to next midleware if exsist
+    } catch {
+      next(new Error('FORBIDDEN'));
+    }
+  };
+
+const NoNewUsersWhenArenaStartedMiddleware =
+  (jwtService: JwtService, logger: Logger, arenaRepository: ArenaRepository) =>
+  async (socket: SocketWithAuth, next) => {
+    // for Postman testing support, fallback to token header
+    // const token =
+    //   socket.handshake.auth.token || socket.handshake.headers['token'];
+
+    logger.debug(
+      `Validating if arenaId:${socket.arenaId} started ? \nand if user:${socket.userId} was participant before it was start\n this before connection to scoket `,
+    );
+
+    try {
+      const started = await arenaRepository.isArenaStarted(socket.arenaId);
+      if (started === true) {
+        const isParticipant = await arenaRepository.isParticipant(
+          socket.arenaId,
+          socket.userId,
+          socket.name,
+        );
+        if (isParticipant === true) {
+          next(); // if user is participant to arena before it start he can rejoin go to next func in gateway or to next midleware if exsist
+        } else {
+          socket.emit(
+            'exception',
+            `FORBIDDEN you can not join arenaId:${socket.arenaId}, it is already started`,
+          );
+          next(
+            new Error(
+              `FORBIDDEN you can not join arenaId:${socket.arenaId}, it is already started`,
+            ),
+          );
+        }
+      } else {
+        next(); // if user authoriazed go to next func in gateway or to next midleware if exsist
+      }
     } catch {
       next(new Error('FORBIDDEN'));
     }
