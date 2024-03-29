@@ -4,11 +4,13 @@ import { ArenaService } from './arena.service';
 import { RequestWithAuth } from './types/types';
 import { ControllerAuthGuard } from './guard/controller-auth.guard';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
+import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
 
 @Controller('arena')
 export class SocketsController {
   constructor(private readonly arenaService: ArenaService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body() createArenaDto: CreateArenaDto) {
     const result = await this.arenaService.createArena(createArenaDto);
