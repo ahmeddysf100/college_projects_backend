@@ -11,11 +11,10 @@ import { CreateArenaDto } from './dto/create-socket.dto';
 import {
   AddNominationData,
   AddParticipantData,
-  Solver,
   StoredAnswers,
 } from './types/types';
 import { ArenaGear, Nomination } from 'shared';
-import { Arena, CreateArena } from './types/createArena';
+import { AddParticipant, Arena } from './types/createArena';
 
 @Injectable()
 export class ArenaRepository {
@@ -252,8 +251,8 @@ export class ArenaRepository {
 
       this.logger.verbose(currentArena);
 
-      // if (currentArena?.hasStarted) {
-      //   throw new BadRequestException('The Arena has already started');
+      // if (currentArena === null) {
+      //   return '' as any;
       // }
 
       return JSON.parse(currentArena);
@@ -269,7 +268,7 @@ export class ArenaRepository {
     arenaId,
     userId,
     name,
-  }: AddParticipantData): Promise<Arena | string> {
+  }: AddParticipantData): Promise<AddParticipant | string> {
     this.logger.log(
       `Attempting to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
     );
@@ -283,7 +282,10 @@ export class ArenaRepository {
       if (isParticipant === true) {
         await this.toggleIsOnlineTo(true, arenaId, userId);
         // return `user with id/name:${userId}/${name} REJIONED`; //return this message with getArena(arenaId) to users or admin as notifacions
-        return this.getArena(arenaId);
+        return {
+          arenaData: await this.getArena(arenaId),
+          title: `player ${name} REJOINED the game`,
+        };
       }
 
       const started = await this.isArenaStarted(arenaId);
@@ -301,7 +303,10 @@ export class ArenaRepository {
         JSON.stringify(value),
       );
 
-      return this.getArena(arenaId);
+      return {
+        arenaData: await this.getArena(arenaId),
+        title: `player ${name} JOIND the game`,
+      };
     } catch (e) {
       this.logger.error(
         `Failed to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
@@ -384,7 +389,8 @@ export class ArenaRepository {
   async removeParticipant(
     arenaId: string,
     userId: string,
-  ): Promise<Arena | boolean> {
+    name: string,
+  ): Promise<AddParticipant> {
     const key = `arenaId:${arenaId}`;
     const participantPath = `.participants.${userId}`;
 
@@ -393,11 +399,17 @@ export class ArenaRepository {
       this.logger.error(`aaaaaaaaa ${start}`);
       if (start === true) {
         await this.toggleIsOnlineTo(false, arenaId, userId);
-        return this.getArena(arenaId);
+        return {
+          arenaData: await this.getArena(arenaId),
+          title: `player ${name} is OFLINE`,
+        };
       } else {
         this.logger.debug(`removing userId: ${userId} from poll: ${arenaId}`);
         await this.redis.call('JSON.DEL', key, participantPath);
-        return this.getArena(arenaId);
+        return {
+          arenaData: await this.getArena(arenaId),
+          title: `player ${name} DISCONNECTED the game`,
+        };
       }
     } catch (e) {
       this.logger.error(

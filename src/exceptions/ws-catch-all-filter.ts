@@ -3,10 +3,12 @@ import {
   BadRequestException,
   Catch,
   ExceptionFilter,
+  NotFoundException,
 } from '@nestjs/common';
 import { SocketWithAuth } from 'src/sockets/types/types';
 import {
   WsBadRequestException,
+  WsNotFoundException,
   WsTypeException,
   WsUnknownException,
 } from './ws-exceptions';
@@ -22,6 +24,16 @@ export class WsCatchAllFilter implements ExceptionFilter {
         exceptionData['message'] ?? exceptionData ?? exception.name;
 
       const wsException = new WsBadRequestException(exceptionMessage);
+      socket.emit('exception', wsException.getError());
+      return;
+    }
+
+    if (exception instanceof NotFoundException) {
+      const exceptionData = exception.getResponse();
+      const exceptionMessage =
+        exceptionData['message'] ?? exceptionData ?? exception.name;
+
+      const wsException = new WsNotFoundException(exceptionMessage);
       socket.emit('exception', wsException.getError());
       return;
     }

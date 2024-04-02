@@ -1,6 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Nomination } from 'shared/arena-types';
 import { createArenaID, createNominationID, createUserID } from './ids';
 import {
   AddNominationFields,
@@ -11,7 +10,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
 import { ArenaRepository } from './arena.repository';
-import { Arena } from './types/createArena';
+import { AddParticipant, Arena } from './types/createArena';
 
 @Injectable()
 export class ArenaService {
@@ -60,6 +59,11 @@ export class ArenaService {
 
     const joinedArena = await this.arenaRepository.getArena(fields.arenaId);
 
+    if (joinedArena === null) {
+      this.logger.error(`arena with ID:${fields.arenaId} NOT FOUND`);
+      throw new NotFoundException(`arena with ID:${fields.arenaId} NOT FOUND`);
+    }
+
     this.logger.debug(
       `Creating token string for ArenaID: ${joinedArena.id} and userID: ${userId}`,
     );
@@ -96,14 +100,16 @@ export class ArenaService {
 
   async addParticipant(
     addParticipant: AddParticipantFields,
-  ): Promise<Arena | string> {
+  ): Promise<AddParticipant | string> {
     return this.arenaRepository.addParticipant(addParticipant);
   }
 
   async removeParticipant(
     arenaId: string,
     userId: string,
-  ): Promise<Arena | boolean> {
+    name: string,
+  ): Promise<AddParticipant> {
+    //if there is difrence in promise of sevice and promise of reposatory the diffrense will be deleted
     // const poll = await this.arenaRepository.getArena(arenaId);
 
     // if arena did not start you can remove players
@@ -111,6 +117,7 @@ export class ArenaService {
     const updatedPoll = await this.arenaRepository.removeParticipant(
       arenaId,
       userId,
+      name,
     );
     return updatedPoll;
     // }

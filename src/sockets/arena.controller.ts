@@ -10,7 +10,7 @@ import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
 export class SocketsController {
   constructor(private readonly arenaService: ArenaService) {}
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body() createArenaDto: CreateArenaDto) {
     const result = await this.arenaService.createArena(createArenaDto);
@@ -18,7 +18,7 @@ export class SocketsController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Post('/join')
   async join(@Body() joinArenaDto: JoinArenaDto) {
     const result = await this.arenaService.joinArena(joinArenaDto);

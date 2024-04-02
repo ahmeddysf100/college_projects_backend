@@ -3,6 +3,11 @@ export interface CreateArena {
   accessToken: string;
 }
 
+export interface AddParticipant {
+  arenaData: Arena;
+  title: string;
+}
+
 export interface Arena {
   id: string;
   arenaQear: ArenaQear[];

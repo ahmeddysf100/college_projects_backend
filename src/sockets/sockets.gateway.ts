@@ -9,9 +9,9 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { SocketsService } from './sockets.service';
-import { CreateSocketDto, NominationDto } from './dto/create-socket.dto';
+import { NominationDto } from './dto/create-socket.dto';
 import { UpdateSocketDto } from './dto/update-socket.dto';
-import { Namespace, Server, Socket } from 'socket.io';
+import { Namespace } from 'socket.io';
 import { Logger, UseFilters, UseGuards } from '@nestjs/common';
 import { SocketWithAuth } from './types/types';
 import { WsCatchAllFilter } from 'src/exceptions/ws-catch-all-filter';
@@ -76,6 +76,8 @@ export class SocketsGateway
       name: client.name,
     });
 
+    this.logger.fatal(updateArena);
+
     if (updateArena === 'started') {
       client.emit('exception', `arena with id:${client.arenaId} has started`);
       client.disconnect(true);
@@ -87,10 +89,11 @@ export class SocketsGateway
   async handleDisconnect(client: SocketWithAuth) {
     const sockets = this.io.sockets;
 
-    const { arenaId, userId } = client;
+    const { arenaId, userId, name } = client;
     const updatedArena = await this.arenaService.removeParticipant(
       arenaId,
       userId,
+      name,
     );
 
     const roomName = client.arenaId;
@@ -101,6 +104,7 @@ export class SocketsGateway
     this.logger.debug(
       `Total clients connected to room '${roomName}': ${clientCount}`,
     );
+    this.logger.fatal(updatedArena);
 
     if (updatedArena) {
       this.io.to(arenaId).emit('arena_updated', updatedArena);
@@ -120,6 +124,7 @@ export class SocketsGateway
     const updateArena = await this.arenaService.removeParticipant(
       client.arenaId,
       id,
+      client.name,
     );
 
     console.log('aaaaaaaaaaaaaaaaaaaa', client.arenaId);
@@ -191,19 +196,19 @@ export class SocketsGateway
     this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
 
-  @SubscribeMessage('aaa')
-  async findOne(
-    @MessageBody() id: any,
-    @ConnectedSocket() client: SocketWithAuth,
-  ) {
-    console.log(id);
-    // const req = await this.arenaRepository.getPoints(
-    //   `.rankings.${client.userId},`,
-    //   `arenaId:${client.arenaId}`,
-    // );
+  // @SubscribeMessage('aaa')
+  // async findOne(
+  //   @MessageBody() id: any,
+  //   @ConnectedSocket() client: SocketWithAuth,
+  // ) {
+  //   console.log(id);
+  //   // const req = await this.arenaRepository.getPoints(
+  //   //   `.rankings.${client.userId},`,
+  //   //   `arenaId:${client.arenaId}`,
+  //   // );
 
-    // this.io.to(client.arenaId).emit('arena_updated', req);
-  }
+  //   // this.io.to(client.arenaId).emit('arena_updated', req);
+  // }
 
   @SubscribeMessage('updateSocket')
   update(@MessageBody() updateSocketDto: UpdateSocketDto) {

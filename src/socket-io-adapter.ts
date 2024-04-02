@@ -1,15 +1,9 @@
-import {
-  BadRequestException,
-  INestApplicationContext,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { INestApplicationContext, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Server, ServerOptions } from 'socket.io';
 import { SocketWithAuth } from './sockets/types/types';
-import { WsUnauthorizedException } from './exceptions/ws-exceptions';
 import { ArenaRepository } from './sockets/arena.repository';
 
 // to remember watch this https://youtu.be/tUNaSRa5CFA?si=J60hQL5XRQZXZ8Y2
