@@ -18,6 +18,7 @@ export class SocketsController {
     return result;
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('/join')
   async join(@Body() joinArenaDto: JoinArenaDto) {
     const result = await this.arenaService.joinArena(joinArenaDto);
