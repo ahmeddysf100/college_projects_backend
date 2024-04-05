@@ -75,7 +75,7 @@ const createTokenMiddleware =
       socket.name = payload.name;
       next(); // if user authoriazed go to next func in gateway or to next midleware if exsist
     } catch {
-      next(new Error('FORBIDDEN'));
+      next(new Error('FORBIDDEN : invaled token'));
     }
   };
 

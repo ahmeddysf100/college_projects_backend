@@ -43,7 +43,7 @@ export class ArenaRepository {
       roundTime: createArenaDto.roundTime,
       participants: {},
       nominations: {},
-      rankings: {},
+      rankings: [],
       results: {},
       totalStages: createArenaDto.arenaGear.length,
       currentStage: 0,
