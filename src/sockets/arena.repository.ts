@@ -14,7 +14,12 @@ import {
   StoredAnswers,
 } from './types/types';
 import { ArenaGear, Nomination } from 'shared';
-import { AddParticipant, Arena } from './types/createArena';
+import {
+  AddParticipant,
+  AddParticipantWithGear,
+  Arena,
+  Ranks,
+} from './types/createArena';
 
 @Injectable()
 export class ArenaRepository {
@@ -268,7 +273,9 @@ export class ArenaRepository {
     arenaId,
     userId,
     name,
-  }: AddParticipantData): Promise<AddParticipant | string> {
+  }: AddParticipantData): Promise<
+    AddParticipant | string | AddParticipantWithGear
+  > {
     this.logger.log(
       `Attempting to add a participant with userId/name: ${userId}/${name} to arenaId: ${arenaId}`,
     );
@@ -285,6 +292,7 @@ export class ArenaRepository {
         return {
           arenaData: await this.getArena(arenaId),
           title: `player ${name} REJOINED the game`,
+          gearData: await this.getGear(arenaId),
         };
       }
 
@@ -370,18 +378,53 @@ export class ArenaRepository {
       );
 
       const key = `arenaId:${arenaId}`;
-      const path = `.rankings.${name}`;
-      const x = await this.redis.call('JSON.TYPE', key, path);
-      // this.logger.fatal(`aaaaaaaaaa ${x}`);
-      if (x === null) {
+      const path = `.rankings`;
+      const x = await this.redis.call(
+        'JSON.ARRINDEX',
+        key,
+        path,
+        `{"name":"${name}","userId":"${userId}","rank":0}`,
+      );
+      this.logger.fatal(`JSON.ARRINDEX: ${x}`);
+      if (x === -1) {
         this.logger.debug(
           `NO intial value attempting to set .rankings.${name} to 0`,
         );
-        await this.redis.call('JSON.SET', key, path, 0);
+        await this.redis.call(
+          'JSON.ARRAPPEND',
+          key,
+          path,
+          `{"name":"${name}","userId":"${userId}","rank":0}`,
+        ); //JSON.ARRAPPEND add new element after the last index of array
       }
     } catch (e) {
       this.logger.error(
         ` faild in SETTING ranking to arenaId:${arenaId} / userId:${userId} \nERROR:${e}`,
+      );
+    }
+  }
+
+  async updateRankings(userId: string, arenaId: string) {
+    this.logger.log(
+      `Attempting to increase a rankings with userId/arenaId: ${userId}/${arenaId}`,
+    );
+    try {
+      const key = `arenaId:${arenaId}`;
+      const path = `.rankings`;
+      const ranks = JSON.parse(
+        (await this.redis.call('JSON.GET', key, path)) as string,
+      ) as Ranks[];
+
+      const index = ranks.findIndex((i) => i.userId === userId); // find index of the user who answered
+      this.logger.verbose('indeeex', index);
+      ranks[index].rank += 1; // increase his score(rank)
+      ranks.sort((a, b) => b.rank - a.rank); // sort array from big to small by b - a
+      this.logger.verbose('sorted ranks', ranks);
+
+      await this.redis.call('JSON.SET', key, path, JSON.stringify(ranks)); //rewrite the old values with new,sorted array
+    } catch (e) {
+      this.logger.error(
+        `Failed to set RANK:with userId/arenaId: ${userId}/${arenaId} ERROR:${e}`,
       );
     }
   }
@@ -448,7 +491,7 @@ export class ArenaRepository {
     arenaId,
     nominationId,
     nomination,
-  }: AddNominationData) {
+  }: AddNominationData): Promise<AddParticipantWithGear | void> {
     this.logger.log(
       `Attempting to add a nomination with nominationID/nomination: ${nominationId}/${nomination.text} to pollID: ${arenaId}`,
     );
@@ -461,41 +504,29 @@ export class ArenaRepository {
         await this.NominationToDB({ arenaId, nominationId, nomination });
 
         const answer = await this.getAnswers(arenaId, nomination.Q_id);
+        //if answer is correct update rank and go to next question
         if (answer.text === nomination.text) {
           this.logger.warn(answer.text + '  ' + nomination.text);
 
-          // update ranking for user by incr by 1
+          // update ranking for user by incr by 1 and sort ranks
           await this.updateRankings(nomination.userId, arenaId);
 
           // return next question because the answer is right to switch question for players
-          return await this.saveSolver(
-            arenaId,
-            nomination,
-            nomination.Q_id,
-            nominationId,
-          );
+          return {
+            arenaData: await this.getArena(arenaId),
+            gearData: await this.saveSolver(
+              arenaId,
+              nomination,
+              nomination.Q_id,
+              nominationId,
+            ),
+            title: `${nomination.name} SOLVE the question`,
+          };
         }
       }
     } else if (isStarted === false) {
       throw new BadRequestException(
         `you can not send answer becuase arenaId:${arenaId} did not START!!!`,
-      );
-    }
-  }
-
-  async updateRankings(userId: string, arenaId: string) {
-    this.logger.log(
-      `Attempting to add a rankings with userId/arenaId: ${userId}/${arenaId}`,
-    );
-    try {
-      const key = `arenaId:${arenaId}`;
-      const path = `.rankings.${userId}`;
-
-      //increment it by 1
-      await this.redis.call('JSON.NUMINCRBY', key, path, 1);
-    } catch (e) {
-      this.logger.error(
-        `Failed to set RANK:with userId/arenaId: ${userId}/${arenaId} ERROR:${e}`,
       );
     }
   }

@@ -1,3 +1,9 @@
+export interface Ranks {
+  name: string;
+  userId: string;
+  rank: number;
+}
+
 export interface CreateArena {
   arena: Arena;
   accessToken: string;
@@ -5,6 +11,11 @@ export interface CreateArena {
 
 export interface AddParticipant {
   arenaData: Arena;
+  title: string;
+}
+export interface AddParticipantWithGear {
+  arenaData: Arena;
+  gearData: ArenaQear;
   title: string;
 }
 
