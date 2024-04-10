@@ -15,13 +15,31 @@ export interface AddParticipant {
 }
 export interface AddParticipantWithGear {
   arenaData: Arena;
-  gearData: ArenaQear;
+  gearData: Arena_updated_gear | string;
   title: string;
+}
+
+export interface Arena_updated_gear {
+  id: number;
+  Q_imageUrl: string | null;
+  Q_text: string | null;
+  correctAnswer: string | null | number;
+  subjectId: number;
+  createdAt: Date;
+  updatedAt: Date;
+  quizId: number;
+  answers: answers_Arena_gear[] | null;
+  AnswerExplanation: null;
+  type: string;
+}
+
+export interface answers_Arena_gear {
+  A_text: string | number;
 }
 
 export interface Arena {
   id: string;
-  arenaQear: ArenaQear[];
+  arenaQear: Arena_updated_gear[];
   numOfPlayers: number;
   adminId: string;
   hasStarted: boolean;
@@ -37,23 +55,5 @@ type NominationID = string;
 export type Rankings = {
   [userID: string]: NominationID[];
 };
-
-export interface ArenaQear {
-  id: number;
-  Q_imageUrl: null | string;
-  Q_text: null | string;
-  correctAnswer: null;
-  subjectId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  quizId: number;
-  answers: Answer[] | null;
-  AnswerExplanation: null;
-  type: string;
-}
-
-export interface Answer {
-  A_text: string;
-}
 
 export interface Nominations {}

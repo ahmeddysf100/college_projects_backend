@@ -10,7 +10,11 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { CreateArenaDto, JoinArenaDto } from './dto/create-socket.dto';
 import { ArenaRepository } from './arena.repository';
-import { AddParticipant, AddParticipantWithGear, Arena } from './types/createArena';
+import {
+  AddParticipant,
+  AddParticipantWithGear,
+  Arena,
+} from './types/createArena';
 
 @Injectable()
 export class ArenaService {
@@ -161,8 +165,11 @@ export class ArenaService {
     return this.arenaRepository.removeNomination(arenaId, nominationId);
   }
 
-  async startArena(adminId: string): Promise<Arena> {
-    return this.arenaRepository.startArena(adminId);
+  async startArena(
+    arenaId: string,
+    adminName: string,
+  ): Promise<AddParticipantWithGear> {
+    return this.arenaRepository.startArena(arenaId, adminName);
   }
 
   async computeResults(arenaId: string): Promise<any> {

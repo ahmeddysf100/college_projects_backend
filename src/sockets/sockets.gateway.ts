@@ -181,7 +181,10 @@ export class SocketsGateway
   async startVote(@ConnectedSocket() client: SocketWithAuth): Promise<void> {
     this.logger.debug(`Attempting to start arena: ${client.arenaId}`);
 
-    const updatedPoll = await this.arenaService.startArena(client.arenaId);
+    const updatedPoll = await this.arenaService.startArena(
+      client.arenaId,
+      client.name,
+    );
 
     this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
@@ -195,6 +198,9 @@ export class SocketsGateway
 
     this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
+
+  // @SubscribeMessage('time_out')
+  // async timeOut(@ConnectedSocket() client: SocketWithAuth,@MessageBody() )
 
   // @SubscribeMessage('aaa')
   // async findOne(

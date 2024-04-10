@@ -18,6 +18,7 @@ import {
   AddParticipant,
   AddParticipantWithGear,
   Arena,
+  Arena_updated_gear,
   Ranks,
 } from './types/createArena';
 
@@ -124,7 +125,11 @@ export class ArenaRepository {
     }
   }
 
-  async getGear(arenaId: string): Promise<any> {
+  async incr_getGear(arenaId: string): Promise<any> {
+    this.logger.debug(
+      `attempting to GET & NUMINCRBY 1 gear for arenaId: ${arenaId}`,
+    );
+
     try {
       const currentStage = await this.redis.call(
         'JSON.GET',
@@ -141,13 +146,55 @@ export class ArenaRepository {
         this.logger.debug(
           `currentStages:${currentStage} <= totalStages:${totalStages}`,
         );
-        await this.redis.call(
-          'JSON.NUMINCRBY',
+
+        this.logger.debug(`increment currentStage:${currentStage} by 1`);
+        const incr = (await this.redis.call(
+          'JSON.NUMINCRBY', //first incr stage by 1
           `arenaId:${arenaId}`,
           `.currentStage`,
           1,
+        )) as string;
+        this.logger.debug(
+          `attempting to GET question_num:${incr} from Gears:arenaId:${arenaId}`,
         );
-        this.logger.debug(`increment currentStage:${currentStage} by 1`);
+        const req = (await this.redis.call(
+          'JSON.GET',
+          `Gears:arenaId:${arenaId}`,
+          `.[${incr}]`, //second get stage after increanted by 1
+        )) as any;
+
+        return JSON.parse(req);
+      } else {
+        this.logger.debug(
+          `currentStages:${currentStage} >>> totalStages:${totalStages}`,
+        );
+        return 'FINSHED';
+      }
+    } catch (e) {
+      this.logger.error(`Failed to GET GEAR \n${e}`);
+      throw new InternalServerErrorException(`Failed to GET GEAR\n${e}`);
+    }
+  }
+
+  async getGear(arenaId: string): Promise<Arena_updated_gear | string> {
+    this.logger.debug(`attempting to GET gear for arenaId: ${arenaId}`);
+
+    try {
+      const currentStage = await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.currentStage`,
+      );
+      const totalStages = await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.totalStages`,
+      );
+
+      if (currentStage < totalStages) {
+        this.logger.debug(
+          `currentStages:${currentStage} <= totalStages:${totalStages}`,
+        );
         this.logger.debug(
           `attempting to GET question_num:${currentStage} from Gears:arenaId:${arenaId}`,
         );
@@ -155,7 +202,7 @@ export class ArenaRepository {
           'JSON.GET',
           `Gears:arenaId:${arenaId}`,
           `.[${currentStage}]`,
-        )) as any;
+        )) as string;
         return JSON.parse(req);
       } else {
         this.logger.debug(
@@ -572,7 +619,7 @@ export class ArenaRepository {
         `.Q_id:${Q_id}.${nominationId}`, // [index] is the index element of array of `answers:arenaId:${arenaId}`
         JSON.stringify(nomination),
       );
-      return await this.getGear(arenaId);
+      return await this.incr_getGear(arenaId);
     } catch (e) {
       this.logger.error(
         `Failed to set SOLVER:${JSON.stringify(nomination, null, 2)} arenaId ${arenaId} ERROR:${e}`,
@@ -646,7 +693,10 @@ export class ArenaRepository {
     }
   }
 
-  async startArena(arenaId: string): Promise<Arena> {
+  async startArena(
+    arenaId: string,
+    adminName: string,
+  ): Promise<AddParticipantWithGear> {
     this.logger.log(`setting hasStarted for arena: ${arenaId}`);
 
     const key = `arenaId:${arenaId}`;
@@ -659,7 +709,11 @@ export class ArenaRepository {
         JSON.stringify(true),
       );
 
-      return this.getGear(arenaId);
+      return {
+        arenaData: await this.getArena(arenaId),
+        gearData: await this.getGear(arenaId),
+        title: `admin: ${adminName} STARTED arena`,
+      };
     } catch (e) {
       this.logger.error(`Failed set hasStarted for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
