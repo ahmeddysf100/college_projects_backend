@@ -46,6 +46,7 @@ export interface Arena {
   roundTime: number;
   participants: Nominations;
   nominations: Nominations;
+  un_Solved_Quseions: any[];
   rankings: Rankings[];
   results: any[];
 }

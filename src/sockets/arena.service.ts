@@ -177,4 +177,17 @@ export class ArenaService {
 
     return req;
   }
+
+  async timeOut(
+    arenaId: string,
+    Q_id: number,
+    currentStage: number,
+  ): Promise<AddParticipantWithGear> {
+    const req = await this.arenaRepository.timeOut_next_question(
+      arenaId,
+      Q_id,
+      currentStage,
+    );
+    return req;
+  }
 }

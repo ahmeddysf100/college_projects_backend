@@ -50,6 +50,7 @@ export class ArenaRepository {
       participants: {},
       nominations: {},
       rankings: [],
+      unSolvedQuseions: [],
       results: {},
       totalStages: createArenaDto.arenaGear.length,
       currentStage: 0,
@@ -131,16 +132,16 @@ export class ArenaRepository {
     );
 
     try {
-      const currentStage = await this.redis.call(
+      const currentStage = (await this.redis.call(
         'JSON.GET',
         `arenaId:${arenaId}`,
         `.currentStage`,
-      );
-      const totalStages = await this.redis.call(
+      )) as number;
+      const totalStages = (await this.redis.call(
         'JSON.GET',
         `arenaId:${arenaId}`,
         `.totalStages`,
-      );
+      )) as number;
 
       if (currentStage < totalStages) {
         this.logger.debug(
@@ -148,12 +149,22 @@ export class ArenaRepository {
         );
 
         this.logger.debug(`increment currentStage:${currentStage} by 1`);
-        const incr = (await this.redis.call(
+        let incr = (await this.redis.call(
           'JSON.NUMINCRBY', //first incr stage by 1
           `arenaId:${arenaId}`,
           `.currentStage`,
           1,
-        )) as string;
+        )) as number;
+
+        if (incr >= totalStages) {
+          this.logger.warn(
+            `new value of currentStage:${incr} is >= totalStage:${totalStages}`,
+          );
+          incr--;
+          this.logger.warn(`attempting to DECREASE incr = ${incr}`);
+          return 'FINSHED';
+        }
+
         this.logger.debug(
           `attempting to GET question_num:${incr} from Gears:arenaId:${arenaId}`,
         );
@@ -331,19 +342,22 @@ export class ArenaRepository {
     const participantPath = `.participants.${userId}`;
     const value = { name: name, isOnline: true };
     try {
+      let gear = null;
       const isParticipant = await this.isParticipant(arenaId, userId, name);
+      const started = await this.isArenaStarted(arenaId);
 
       if (isParticipant === true) {
         await this.toggleIsOnlineTo(true, arenaId, userId);
         // return `user with id/name:${userId}/${name} REJIONED`; //return this message with getArena(arenaId) to users or admin as notifacions
+        if (started === true) {
+          gear = await this.getGear(arenaId);
+        }
         return {
           arenaData: await this.getArena(arenaId),
           title: `player ${name} REJOINED the game`,
-          gearData: await this.getGear(arenaId),
+          gearData: gear,
         };
       }
-
-      const started = await this.isArenaStarted(arenaId);
 
       if (started) {
         this.logger.error(started);
@@ -751,6 +765,46 @@ export class ArenaRepository {
       this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
         `Failed getting RESULT for arena: ${arenaId}`,
+      );
+    }
+  }
+
+  //VERY IMPORTANT fetch gearData before arenaData
+  async timeOut_next_question(
+    arenaId: string,
+    Q_id: number,
+    currentStage: number,
+  ): Promise<AddParticipantWithGear> {
+    this.logger.warn(
+      `attempting to MARK stage: ${currentStage} with Q_id: ${Q_id} AS UNSOLVED for arena: ${arenaId}`,
+    );
+    try {
+      const done = (await this.redis.call(
+        'JSON.ARRINDEX',
+        `arenaId:${arenaId}`,
+        `.unSolvedQuseions`,
+        `{ "currentStage": ${currentStage}, "Q_id": ${Q_id} }`,
+      )) as number;
+      this.logger.warn(done);
+      if (done === -1) {
+        await this.redis.call(
+          'JSON.ARRAPPEND',
+          `arenaId:${arenaId}`,
+          `.unSolvedQuseions`,
+          JSON.stringify({ currentStage: currentStage, Q_id: Q_id }),
+        );
+        return {
+          gearData: await this.incr_getGear(arenaId), //VERY IMPORTANT fetch gearData before arenaData
+          arenaData: await this.getArena(arenaId), //VERY IMPORTANT fetch gearData before arenaData
+          title: `new question answer it`,
+        };
+      } else {
+        this.logger.warn(`already done`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, error);
+      throw new InternalServerErrorException(
+        `Failed to MARK stage: ${currentStage} with Q_id: ${Q_id} AS UNSOLVED for arena: ${arenaId}`,
       );
     }
   }

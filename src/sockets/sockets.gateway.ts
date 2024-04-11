@@ -9,7 +9,7 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { SocketsService } from './sockets.service';
-import { NominationDto } from './dto/create-socket.dto';
+import { NominationDto, timeOutDto } from './dto/create-socket.dto';
 import { UpdateSocketDto } from './dto/update-socket.dto';
 import { Namespace } from 'socket.io';
 import { Logger, UseFilters, UseGuards } from '@nestjs/common';
@@ -199,8 +199,23 @@ export class SocketsGateway
     this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
   }
 
-  // @SubscribeMessage('time_out')
-  // async timeOut(@ConnectedSocket() client: SocketWithAuth,@MessageBody() )
+  @SubscribeMessage('time_out')
+  async timeOut(
+    @ConnectedSocket() client: SocketWithAuth,
+    @MessageBody() timeOutDto: timeOutDto,
+  ): Promise<void> {
+    this.logger.debug(
+      `TIME OUT for STAGE: ${timeOutDto.currentStage} , arena: ${client.arenaId} sending next question`,
+    );
+
+    const updatedArena = await this.arenaService.timeOut(
+      client.arenaId,
+      timeOutDto.Q_id,
+      timeOutDto.currentStage,
+    );
+
+    this.io.to(client.arenaId).emit('arena_updated', updatedArena);
+  }
 
   // @SubscribeMessage('aaa')
   // async findOne(

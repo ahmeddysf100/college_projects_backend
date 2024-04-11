@@ -54,3 +54,11 @@ export class NominationDto {
   @IsNumber()
   Q_id: number;
 }
+
+export class timeOutDto {
+  @IsNumber()
+  Q_id: number;
+
+  @IsNumber()
+  currentStage: number;
+}
