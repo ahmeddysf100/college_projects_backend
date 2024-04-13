@@ -147,15 +147,19 @@ export class SocketsGateway
       `Attempting to add nomination for user ${client.userId} to poll ${client.arenaId}\n${nomination.text}`,
     );
 
-    const updatedPoll = await this.arenaService.addNomination({
+    const updatedArena = await this.arenaService.addNomination({
       arenaId: client.arenaId,
       userId: client.userId,
       Q_id: nomination.Q_id,
       text: nomination.text,
       name: client.name,
     });
-
-    this.io.to(client.arenaId).emit('arena_updated', updatedPoll);
+    this.logger.warn(`your answer is: ${updatedArena}`);
+    if (updatedArena) {
+      this.io.to(client.arenaId).emit('arena_updated', updatedArena);
+    } else {
+      this.io.emit('exception', `YOUR ANSWER: ${nomination.text} IS WRONG`);
+    }
   }
 
   @UseGuards(GatewayAdminGuard)

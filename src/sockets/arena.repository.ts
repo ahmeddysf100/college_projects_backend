@@ -70,6 +70,7 @@ export class ArenaRepository {
 
     // Clean up the arenaGear array
     createArenaDto.arenaGear.forEach((question: any) => {
+      initialArena.nominations[`Q_id:${question.id}`] = [];
       // Determine the question type based on the presence of correctAnswer
       if (question.correctAnswer) {
         question.type = 'single';
@@ -583,11 +584,63 @@ export class ArenaRepository {
             ),
             title: `${nomination.name} SOLVE the question`,
           };
+        } else {
+          const req = await this.is_all_answered(arenaId, nomination.Q_id);
+          if (req !== null) {
+            return {
+              arenaData: await this.getArena(arenaId),
+              gearData: await this.incr_getGear(arenaId),
+              title: req,
+            };
+          }
         }
       }
     } else if (isStarted === false) {
       throw new BadRequestException(
         `you can not send answer becuase arenaId:${arenaId} did not START!!!`,
+      );
+    }
+  }
+
+  async is_all_answered(
+    arenaId: string,
+    nominationId: number,
+  ): Promise<string> {
+    this.logger.debug(
+      `attempting to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+    );
+    const key = `arenaId:${arenaId}`;
+    try {
+      const players = (await this.redis.call(
+        'JSON.OBJKEYS',
+        key,
+        `.participants`,
+      )) as any[];
+      this.logger.warn(`number of playesr is: ${players.length}`);
+
+      const numberOFnomination = (await this.redis.call(
+        'JSON.ARRLEN',
+        key,
+        `.nominations.Q_id:${nominationId}`,
+      )) as number;
+      this.logger.warn(
+        `number of nominations for Q_id: ${players.length} is: ${numberOFnomination}`,
+      );
+
+      if (players.length === numberOFnomination) {
+        this.logger.warn(`warnning ALL players answers is WRONG`);
+        return `No one answered the question correctly sending new question...`;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed in is_all_answered func for to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Failed to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+        error,
       );
     }
   }
@@ -606,7 +659,16 @@ export class ArenaRepository {
       )) as string;
       this.logger.fatal(`answer for Q_id:${Q_id} is:${solved}`);
       return solved === 'true' ? true : false;
-    } catch (e) {}
+    } catch (error) {
+      this.logger.error(
+        `Failed to cheack if question:${Q_id} already solved`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Failed to cheack if question:${Q_id} already solved`,
+        error,
+      );
+    }
   }
 
   async saveSolver(
@@ -654,14 +716,17 @@ export class ArenaRepository {
     );
 
     const key = `arenaId:${arenaId}`;
-    const nominationPath = `.nominations.${nominationId}`;
-
+    const nominationPath = `.nominations.Q_id:${nomination.Q_id}`;
+    // Create a shallow copy of the nomination object
+    const temp = { ...nomination };
+    // Delete the Q_id property from the copy(temp) but not in nomination
+    delete temp.Q_id;
     try {
       await this.redis.call(
-        'JSON.SET',
+        'JSON.ARRAPPEND',
         key,
         nominationPath,
-        JSON.stringify(nomination),
+        JSON.stringify(temp),
       );
 
       return this.getArena(arenaId);
