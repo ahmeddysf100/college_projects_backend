@@ -506,7 +506,7 @@ export class ArenaRepository {
         await this.toggleIsOnlineTo(false, arenaId, userId);
         return {
           arenaData: await this.getArena(arenaId),
-          title: `player ${name} is OFLINE`,
+          title: `player ${name} is OFFLINE`,
         };
       } else {
         this.logger.debug(`removing userId: ${userId} from poll: ${arenaId}`);
@@ -871,6 +871,42 @@ export class ArenaRepository {
       throw new InternalServerErrorException(
         `Failed to MARK stage: ${currentStage} with Q_id: ${Q_id} AS UNSOLVED for arena: ${arenaId}`,
       );
+    }
+  }
+
+  async numOfPlayersGuard(arenaId: string): Promise<boolean> {
+    this.logger.debug(
+      `attempting to check the number of players in arenaId: ${arenaId}`,
+    );
+
+    try {
+      const allowed_num_players = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.numOfPlayers`,
+      )) as number;
+      const current_num_players_str = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.participants`,
+      )) as string;
+
+      const current_num_players = JSON.parse(current_num_players_str);
+
+      const current_num_players_length =
+        Object.keys(current_num_players).length;
+
+      this.logger.fatal(
+        `${current_num_players}  ,current_num_players: ${current_num_players_length} , allowed_num_players: ${allowed_num_players}`,
+      );
+
+      if (current_num_players_length < allowed_num_players) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, error);
     }
   }
 }

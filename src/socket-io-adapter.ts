@@ -52,6 +52,9 @@ export class SocketIOAdapter extends IoAdapter {
           this.arenaRepository,
         ),
       ); // define socket.io middleWare
+    server
+      .of('arena')
+      .use(numOfPlayersGuard(this.logger, this.arenaRepository));
 
     return server;
   }
@@ -116,5 +119,25 @@ const NoNewUsersWhenArenaStartedMiddleware =
       }
     } catch {
       next(new Error('FORBIDDEN'));
+    }
+  };
+
+const numOfPlayersGuard =
+  (logger: Logger, arenaRepository: ArenaRepository) =>
+  async (socket: SocketWithAuth, next) => {
+    logger.debug(`numOfPlayersGuard`);
+    try {
+      const started = await arenaRepository.isArenaStarted(socket.arenaId);
+      if (started === false) {
+        const req = await arenaRepository.numOfPlayersGuard(socket.arenaId);
+        req === true
+          ? next()
+          : next(new Error(`ARENA: ${socket.arenaId} IS FULL`));
+      } else {
+        next();
+      }
+    } catch (error) {
+      logger.error(`ERROR IN numOfPlayersGuard`, error);
+      next(new Error(`ARENA: ${socket.arenaId} IS FULL`));
     }
   };

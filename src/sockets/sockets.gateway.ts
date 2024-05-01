@@ -158,7 +158,7 @@ export class SocketsGateway
     if (updatedArena) {
       this.io.to(client.arenaId).emit('arena_updated', updatedArena);
     } else {
-      this.io.emit('exception', `YOUR ANSWER: ${nomination.text} IS WRONG`);
+      client.emit('exception', `YOUR ANSWER: ${nomination.text} IS WRONG`);
     }
   }
 
