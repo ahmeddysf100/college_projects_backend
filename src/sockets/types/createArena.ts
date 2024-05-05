@@ -39,7 +39,7 @@ export interface answers_Arena_gear {
 
 export interface Arena {
   id: string;
-  arenaQear: Arena_updated_gear[];
+  // arenaQear: Arena_updated_gear[];
   numOfPlayers: number;
   adminId: string;
   hasStarted: boolean;

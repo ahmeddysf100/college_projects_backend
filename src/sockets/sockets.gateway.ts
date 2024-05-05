@@ -114,17 +114,17 @@ export class SocketsGateway
   @UseGuards(GatewayAdminGuard)
   @SubscribeMessage('remove_participant')
   async remove_participant(
-    @MessageBody('id') id: string,
+    @MessageBody() participant: any,
     @ConnectedSocket() client: SocketWithAuth,
   ) {
-    this.logger.debug(
-      `Attempting to remove participant ID: ${id} and name: ${client.name} from poll ${client.arenaId}`,
-    );
+    // this.logger.debug(
+    //   `Attempting to remove participant ID: ${data.id} and name: ${data.name} from arenaId: ${client.arenaId}`,
+    // );
 
-    const updateArena = await this.arenaService.removeParticipant(
+    const updateArena = await this.arenaService.removeParticipantForce(
       client.arenaId,
-      id,
-      client.name,
+      participant.id,
+      participant.name,
     );
 
     console.log('aaaaaaaaaaaaaaaaaaaa', client.arenaId);

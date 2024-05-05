@@ -127,6 +127,25 @@ export class ArenaService {
     // }
   }
 
+  async removeParticipantForce(
+    arenaId: string,
+    userId: string,
+    name: string,
+  ): Promise<AddParticipant> {
+    //if there is difrence in promise of sevice and promise of reposatory the diffrense will be deleted
+    // const poll = await this.arenaRepository.getArena(arenaId);
+
+    // if arena did not start you can remove players
+    // if (!poll.hasStarted) {
+    const updatedPoll = await this.arenaRepository.removeParticipantForce(
+      arenaId,
+      userId,
+      name,
+    );
+    return updatedPoll;
+    // }
+  }
+
   async addNomination({
     arenaId,
     userId,

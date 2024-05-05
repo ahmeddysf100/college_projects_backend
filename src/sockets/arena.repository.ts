@@ -500,6 +500,18 @@ export class ArenaRepository {
     const participantPath = `.participants.${userId}`;
 
     try {
+      const currentNumOfPlayers = (await this.redis.call(
+        'JSON.OBJLEN',
+        `arenaId:${arenaId}`,
+        '.participants',
+      )) as number;
+      const getArenaAdmin = JSON.parse(
+        (await this.redis.call('JSON.GET', key, `.adminId`)) as string,
+      );
+      this.logger.error(`arenaAmin: ${getArenaAdmin} === userId: ${userId}`);
+      if (getArenaAdmin === userId && currentNumOfPlayers > 1) {
+        await this.changeArenaAdmin(arenaId, name, userId);
+      }
       const start = await this.isArenaStarted(arenaId);
       this.logger.error(`aaaaaaaaa ${start}`);
       if (start === true) {
@@ -509,7 +521,9 @@ export class ArenaRepository {
           title: `player ${name} is OFFLINE`,
         };
       } else {
-        this.logger.debug(`removing userId: ${userId} from poll: ${arenaId}`);
+        this.logger.debug(
+          `removing userId: ${userId} from arenaId: ${arenaId}`,
+        );
         await this.redis.call('JSON.DEL', key, participantPath);
         return {
           arenaData: await this.getArena(arenaId),
@@ -522,6 +536,86 @@ export class ArenaRepository {
         e,
       );
       throw new InternalServerErrorException('Failed to remove participant');
+    }
+  }
+
+  async removeParticipantForce(
+    arenaId: string,
+    participantId: string,
+    name: string,
+  ): Promise<AddParticipantWithGear> {
+    this.logger.warn(
+      `Attempting to FORCE remove participant ID: ${participantId} and name: ${name} from arenaId: ${arenaId}`,
+    );
+
+    try {
+      const remove = await this.redis.call(
+        'JSON.DEL',
+        `arenaId:${arenaId}`,
+        `.participants.${participantId}`,
+      );
+      this.logger.fatal(`player ${name} KICKED OUT the game ,${remove}`);
+      return {
+        arenaData: await this.getArena(arenaId),
+        gearData: await this.getGear(arenaId),
+        title: `player ${name} KICKED OUT the game`,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to FORCE remove userId: ${participantId} from arenaId: ${arenaId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Failed to FORCE remove userId: ${participantId} from arenaId: ${arenaId}`,
+      );
+    }
+  }
+
+  async getRandomElementExcept(
+    array: string[],
+    except: string,
+  ): Promise<string> {
+    const filteredArray = array.filter((item) => item !== except);
+    const randomIndex = Math.floor(Math.random() * filteredArray.length);
+    // this.logger.fatal(
+    //   `filteredArray: ${filteredArray}, choose one: ${filteredArray[randomIndex]}`,
+    // );
+    return filteredArray[randomIndex];
+  }
+
+  async changeArenaAdmin(
+    arenaId: string,
+    name: string,
+    userId: string,
+  ): Promise<void> {
+    this.logger.warn(
+      `attemting to change admin name/userId: ${name}//${userId} to new admin`,
+    );
+    try {
+      const getCurrentPlayers = (await this.redis.call(
+        'JSON.OBJKEYS',
+        `arenaId:${arenaId}`,
+        '.participants',
+      )) as string[];
+      this.logger.verbose(`${getCurrentPlayers}`);
+      const newAdmin = await this.getRandomElementExcept(
+        getCurrentPlayers,
+        userId,
+      );
+      // this.logger.error(`aaaaaaaaaa: ${newAdmin}`);
+
+      const setNewAdmin = await this.redis.call(
+        'JSON.SET',
+        `arenaId:${arenaId}`,
+        `.adminId`,
+        `"${newAdmin}"`,
+      );
+      this.logger.warn(`NEW ADMIN IS: ${newAdmin} ${setNewAdmin}`);
+    } catch (error) {
+      this.logger.error(`Failed to SET NEW ADMIN in arena: ${arenaId}`, error);
+      throw new InternalServerErrorException(
+        `Failed to SET NEW ADMIN in arena: ${arenaId}`,
+      );
     }
   }
 
@@ -602,12 +696,9 @@ export class ArenaRepository {
     }
   }
 
-  async is_all_answered(
-    arenaId: string,
-    nominationId: number,
-  ): Promise<string> {
+  async is_all_answered(arenaId: string, Q_id: number): Promise<string> {
     this.logger.debug(
-      `attempting to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+      `attempting to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${Q_id}`,
     );
     const key = `arenaId:${arenaId}`;
     try {
@@ -621,25 +712,41 @@ export class ArenaRepository {
       const numberOFnomination = (await this.redis.call(
         'JSON.ARRLEN',
         key,
-        `.nominations.Q_id:${nominationId}`,
+        `.nominations.Q_id:${Q_id}`,
       )) as number;
       this.logger.warn(
-        `number of nominations for Q_id: ${players.length} is: ${numberOFnomination}`,
+        `number of nominations for Q_id: ${Q_id} is: ${numberOFnomination}`,
       );
 
       if (players.length === numberOFnomination) {
-        this.logger.warn(`warnning ALL players answers is WRONG`);
+        // this.logger.warn(`warnning ALL players answers is WRONG`);
+        const currentStage = (await this.redis.call(
+          'JSON.GET',
+          `arenaId:${arenaId}`,
+          `.currentStage`,
+        )) as number;
+        // mark question as un solved
+        const unSolved = await this.redis.call(
+          'JSON.ARRAPPEND',
+          `arenaId:${arenaId}`,
+          `.unSolvedQuseions`,
+          JSON.stringify({ currentStage: currentStage, Q_id: Q_id }),
+        );
+        this.logger.warn(
+          `warnning ALL players answers is WRONG,mark Q_id:${Q_id} as unSoled: ${unSolved}`,
+        );
+
         return `No one answered the question correctly sending new question...`;
       } else {
         return null;
       }
     } catch (error) {
       this.logger.error(
-        `Failed in is_all_answered func for to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+        `Failed in is_all_answered func for to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${Q_id}`,
         error,
       );
       throw new InternalServerErrorException(
-        `Failed to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${nominationId}`,
+        `Failed to check if all users answer WRONG in arenaId: ${arenaId} for Q_id: ${Q_id}`,
         error,
       );
     }
