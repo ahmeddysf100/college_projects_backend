@@ -21,6 +21,19 @@ export class SocketsController {
   // @UseGuards(JwtAuthGuard)
   @Post('/join')
   async join(@Body() joinArenaDto: JoinArenaDto) {
+    // const options = {
+    //   timeZone: 'Asia/Baghdad',
+    //   hour12: false, // Use 24-hour format
+    //   hour: '2-digit' as const,
+    //   minute: '2-digit' as const,
+    //   second: '2-digit' as const,
+    // };
+
+    // const timeInIraq = new Date().toLocaleTimeString('en-US', options);
+    // console.log(timeInIraq);
+    // const [hours, minutes, seconds] = timeInIraq.split(':').map(Number);
+    // const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    // console.log(totalSeconds);
     const result = await this.arenaService.joinArena(joinArenaDto);
 
     return result;

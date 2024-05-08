@@ -49,7 +49,7 @@ export class ArenaRepository {
       roundTime: createArenaDto.roundTime,
       participants: {},
       nominations: {},
-      rankings: [],
+      // rankings: [],
       unSolvedQuseions: [],
       results: {},
       totalStages: createArenaDto.arenaGear.length,
@@ -71,6 +71,7 @@ export class ArenaRepository {
     // Clean up the arenaGear array
     createArenaDto.arenaGear.forEach((question: any) => {
       initialArena.nominations[`Q_id:${question.id}`] = [];
+      question.sendTime = null;
       // Determine the question type based on the presence of correctAnswer
       if (question.correctAnswer) {
         question.type = 'single';
@@ -169,12 +170,16 @@ export class ArenaRepository {
         this.logger.debug(
           `attempting to GET question_num:${incr} from Gears:arenaId:${arenaId}`,
         );
+
+        await this.setQuesion_sendTime(arenaId, incr);
+        //setQuesion_sendTime should run before req(get arena Qear) becuase if setQuesion_sendTime run after req ,
+        //req.sendTime will have the old value of time
+
         const req = (await this.redis.call(
           'JSON.GET',
           `Gears:arenaId:${arenaId}`,
           `.[${incr}]`, //second get stage after increanted by 1
         )) as any;
-
         return JSON.parse(req);
       } else {
         this.logger.debug(
@@ -210,11 +215,17 @@ export class ArenaRepository {
         this.logger.debug(
           `attempting to GET question_num:${currentStage} from Gears:arenaId:${arenaId}`,
         );
+
+        await this.setQuesion_sendTime(arenaId, currentStage as number);
+        //setQuesion_sendTime should run before req(get arena Qear) becuase if setQuesion_sendTime run after req ,
+        //req.sendTime will have the old value of time
+
         const req = (await this.redis.call(
           'JSON.GET',
           `Gears:arenaId:${arenaId}`,
           `.[${currentStage}]`,
         )) as string;
+
         return JSON.parse(req);
       } else {
         this.logger.debug(
@@ -225,6 +236,42 @@ export class ArenaRepository {
     } catch (e) {
       this.logger.error(`Failed to GET GEAR \n${e}`);
       throw new InternalServerErrorException(`Failed to GET GEAR\n${e}`);
+    }
+  }
+
+  async setQuesion_sendTime(
+    arenaId: string,
+    question_num: number,
+  ): Promise<void> {
+    this.logger.debug(
+      `attemptin to set the time of sending question:${question_num} in arenaId: ${arenaId}`,
+    );
+    try {
+      const options = {
+        timeZone: 'Asia/Baghdad',
+        hour12: false, // Use 24-hour format
+        hour: '2-digit' as const,
+        minute: '2-digit' as const,
+        second: '2-digit' as const,
+      };
+      const timeInIraq = new Date().toLocaleTimeString('en-US', options);
+
+      const req = await this.redis.call(
+        'JSON.SET',
+        `Gears:arenaId:${arenaId}`,
+        `.[${question_num}].sendTime`,
+        `"${timeInIraq}"`,
+      );
+      this.logger.debug(
+        `setting Gears:arenaId:${arenaId}.[${question_num}].sendTime: ${timeInIraq} ,req: ${req}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to SET the time of sending question:${question_num} in arenaId: ${arenaId}\n${error}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to SET the time of sending question:${question_num} in arenaId: ${arenaId}\n${error}`,
+      );
     }
   }
 
@@ -364,7 +411,7 @@ export class ArenaRepository {
         this.logger.error(started);
         return `started`;
       }
-      await this.setRankings(arenaId, userId, name);
+      // await this.setRankings(arenaId, userId, name);
 
       await this.redis.call(
         'JSON.SET',
@@ -433,63 +480,63 @@ export class ArenaRepository {
     }
   }
 
-  async setRankings(arenaId: string, userId: string, name: string) {
-    try {
-      this.logger.debug(
-        `attempting to set RANKING to arenaId:${arenaId} / userId:${userId}/name:${name}`,
-      );
+  // async setRankings(arenaId: string, userId: string, name: string) {
+  //   try {
+  //     this.logger.debug(
+  //       `attempting to set RANKING to arenaId:${arenaId} / userId:${userId}/name:${name}`,
+  //     );
 
-      const key = `arenaId:${arenaId}`;
-      const path = `.rankings`;
-      const x = await this.redis.call(
-        'JSON.ARRINDEX',
-        key,
-        path,
-        `{"name":"${name}","userId":"${userId}","rank":0}`,
-      );
-      this.logger.fatal(`JSON.ARRINDEX: ${x}`);
-      if (x === -1) {
-        this.logger.debug(
-          `NO intial value attempting to set .rankings.${name} to 0`,
-        );
-        await this.redis.call(
-          'JSON.ARRAPPEND',
-          key,
-          path,
-          `{"name":"${name}","userId":"${userId}","rank":0}`,
-        ); //JSON.ARRAPPEND add new element after the last index of array
-      }
-    } catch (e) {
-      this.logger.error(
-        ` faild in SETTING ranking to arenaId:${arenaId} / userId:${userId} \nERROR:${e}`,
-      );
-    }
-  }
+  //     const key = `arenaId:${arenaId}`;
+  //     const path = `.rankings`;
+  //     const x = await this.redis.call(
+  //       'JSON.ARRINDEX',
+  //       key,
+  //       path,
+  //       `{"name":"${name}","userId":"${userId}","rank":0}`,
+  //     );
+  //     this.logger.fatal(`JSON.ARRINDEX: ${x}`);
+  //     if (x === -1) {
+  //       this.logger.debug(
+  //         `NO intial value attempting to set .rankings.${name} to 0`,
+  //       );
+  //       await this.redis.call(
+  //         'JSON.ARRAPPEND',
+  //         key,
+  //         path,
+  //         `{"name":"${name}","userId":"${userId}","rank":0}`,
+  //       ); //JSON.ARRAPPEND add new element after the last index of array
+  //     }
+  //   } catch (e) {
+  //     this.logger.error(
+  //       ` faild in SETTING ranking to arenaId:${arenaId} / userId:${userId} \nERROR:${e}`,
+  //     );
+  //   }
+  // }
 
-  async updateRankings(userId: string, arenaId: string) {
-    this.logger.log(
-      `Attempting to increase a rankings with userId/arenaId: ${userId}/${arenaId}`,
-    );
-    try {
-      const key = `arenaId:${arenaId}`;
-      const path = `.rankings`;
-      const ranks = JSON.parse(
-        (await this.redis.call('JSON.GET', key, path)) as string,
-      ) as Ranks[];
+  // async updateRankings(userId: string, arenaId: string) {
+  //   this.logger.log(
+  //     `Attempting to increase a rankings with userId/arenaId: ${userId}/${arenaId}`,
+  //   );
+  //   try {
+  //     const key = `arenaId:${arenaId}`;
+  //     const path = `.rankings`;
+  //     const ranks = JSON.parse(
+  //       (await this.redis.call('JSON.GET', key, path)) as string,
+  //     ) as Ranks[];
 
-      const index = ranks.findIndex((i) => i.userId === userId); // find index of the user who answered
-      this.logger.verbose('indeeex', index);
-      ranks[index].rank += 1; // increase his score(rank)
-      ranks.sort((a, b) => b.rank - a.rank); // sort array from big to small by b - a
-      this.logger.verbose('sorted ranks', ranks);
+  //     const index = ranks.findIndex((i) => i.userId === userId); // find index of the user who answered
+  //     this.logger.verbose('indeeex', index);
+  //     ranks[index].rank += 1; // increase his score(rank)
+  //     ranks.sort((a, b) => b.rank - a.rank); // sort array from big to small by b - a
+  //     this.logger.verbose('sorted ranks', ranks);
 
-      await this.redis.call('JSON.SET', key, path, JSON.stringify(ranks)); //rewrite the old values with new,sorted array
-    } catch (e) {
-      this.logger.error(
-        `Failed to set RANK:with userId/arenaId: ${userId}/${arenaId} ERROR:${e}`,
-      );
-    }
-  }
+  //     await this.redis.call('JSON.SET', key, path, JSON.stringify(ranks)); //rewrite the old values with new,sorted array
+  //   } catch (e) {
+  //     this.logger.error(
+  //       `Failed to set RANK:with userId/arenaId: ${userId}/${arenaId} ERROR:${e}`,
+  //     );
+  //   }
+  // }
 
   async removeParticipant(
     arenaId: string,
@@ -665,7 +712,8 @@ export class ArenaRepository {
           this.logger.warn(answer.text + '  ' + nomination.text);
 
           // update ranking for user by incr by 1 and sort ranks
-          await this.updateRankings(nomination.userId, arenaId);
+          // await this.updateRankings(nomination.userId, arenaId);
+          await this.incRank(arenaId, nomination.name);
 
           // return next question because the answer is right to switch question for players
           return {
@@ -692,6 +740,105 @@ export class ArenaRepository {
     } else if (isStarted === false) {
       throw new BadRequestException(
         `you can not send answer becuase arenaId:${arenaId} did not START!!!`,
+      );
+    }
+  }
+
+  async incRank(arenaId: string, playerName: string): Promise<void> {
+    this.logger.log(
+      `Attempting to INC rank (score,quesion) for player name: ${playerName} to arenId: ${arenaId}`,
+    );
+    try {
+      const score = await this.getScore(arenaId, playerName);
+      const req = await this.redis
+        .multi([
+          [
+            'send_command',
+            `ZINCRBY`,
+            `ranks:arenaId:${arenaId}:s`,
+            `${score}`,
+            `"${playerName}"`,
+          ],
+          [
+            'send_command',
+            `ZINCRBY`,
+            `ranks:arenaId:${arenaId}:q`,
+            1,
+            `"${playerName}"`,
+          ],
+        ])
+        .exec();
+      this.logger.warn(`${req}`);
+    } catch (error) {
+      this.logger.error(
+        `faild in INC rank (score,quesion) for player name: ${playerName} to arenId: ${arenaId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `faild in INC rank (score,quesion) for player name: ${playerName} to arenId: ${arenaId}`,
+        error,
+      );
+    }
+  }
+
+  async getScore(arenaId: string, playerName: string): Promise<number> {
+    this.logger.debug(
+      `attempting to GET SCORE for player name: ${playerName} to arenId: ${arenaId}`,
+    );
+    try {
+      const options = {
+        timeZone: 'Asia/Baghdad',
+        hour12: false, // Use 24-hour format
+        hour: '2-digit' as const,
+        minute: '2-digit' as const,
+        second: '2-digit' as const,
+      };
+
+      const timeInIraq = new Date().toLocaleTimeString('en-US', options);
+      const [hours, minutes, seconds] = timeInIraq.split(':').map(Number);
+      const totalSeconds_answer = hours * 3600 + minutes * 60 + seconds;
+      const arenaTime = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.roundTime`,
+      )) as number;
+
+      const currentStage = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.currentStage`,
+      )) as number;
+
+      const sendTime = (await this.redis.call(
+        'JSON.GET',
+        `Gears:arenaId:${arenaId}`,
+        `.[${currentStage}].sendTime`,
+      )) as string;
+      this.logger.fatal(
+        `timeInIraq:${timeInIraq}
+         sendTime:${JSON.parse(sendTime)}`,
+      );
+      const [hours2, minutes2, seconds2] = JSON.parse(sendTime)
+        .split(':')
+        .map(Number);
+
+      const totalSeconds_sendTime = hours2 * 3600 + minutes2 * 60 + seconds2;
+      const timeTaken = totalSeconds_answer - totalSeconds_sendTime + 5;
+      const score = (1 - +(timeTaken / arenaTime).toFixed(2)) * 100;
+
+      this.logger.fatal(
+        `score: ${score} , timeTaken = userAnswer: ${totalSeconds_answer} / questionSend: ${totalSeconds_sendTime}/n
+        score = 1 - (timeTaken:${timeTaken} / arenaTime:${arenaTime}) * 100;`,
+      );
+      return score > 0 ? score : 0;
+    } catch (error) {
+      this.logger.error(
+        `faild to GET SCORE for player name: ${playerName} to arenId: ${arenaId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `faild to GET SCORE for player name: ${playerName} to arenId: ${arenaId}`,
+        error,
       );
     }
   }
@@ -894,6 +1041,7 @@ export class ArenaRepository {
         '.hasStarted',
         JSON.stringify(true),
       );
+      await this.setRank(arenaId);
 
       return {
         arenaData: await this.getArena(arenaId),
@@ -906,6 +1054,49 @@ export class ArenaRepository {
         'The was an error starting the arena',
       );
     }
+  }
+
+  async setRank(arenaId: string) {
+    this.logger.log(
+      `Attempting to SET rank (score,quesion) for all players in arenId: ${arenaId}`,
+    );
+    try {
+      const participants = (await this.redis.call(
+        'JSON.GET',
+        `arenaId:${arenaId}`,
+        `.participants`,
+      )) as string;
+
+      const parsedParticipants = JSON.parse(participants);
+      const playersArray = [];
+      for (const id in parsedParticipants) {
+        playersArray.push(parsedParticipants[id].name);
+      }
+
+      for (const player of playersArray) {
+        const req = await this.redis
+          .multi([
+            [
+              'send_command',
+              `ZADD`,
+              `ranks:arenaId:${arenaId}:s`,
+              0,
+              `"${player}"`,
+            ],
+            ['send_command', 'EXPIRE', `ranks:arenaId:${arenaId}:s`, 7200],
+            [
+              'send_command',
+              `ZADD`,
+              `ranks:arenaId:${arenaId}:q`,
+              0,
+              `"${player}"`,
+            ],
+            ['send_command', 'EXPIRE', `ranks:arenaId:${arenaId}:q`, 7200],
+          ])
+          .exec();
+        this.logger.log(`player: ${player} req: ${req}`);
+      }
+    } catch (error) {}
   }
 
   async getResult(arenaId: string): Promise<unknown> {

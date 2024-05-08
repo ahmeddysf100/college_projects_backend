@@ -31,6 +31,7 @@ export interface Arena_updated_gear {
   answers: answers_Arena_gear[] | null;
   AnswerExplanation: null;
   type: string;
+  sendTime: string | null;
 }
 
 export interface answers_Arena_gear {
@@ -47,7 +48,7 @@ export interface Arena {
   participants: Nominations;
   nominations: Nominations;
   un_Solved_Quseions: any[];
-  rankings: Rankings[];
+  // rankings: Rankings[];
   results: any[];
 }
 

@@ -154,7 +154,7 @@ export class SocketsGateway
       text: nomination.text,
       name: client.name,
     });
-    this.logger.warn(`your answer is: ${updatedArena}`);
+    this.logger.warn(`your answer is: ${nomination.text}`);
     if (updatedArena) {
       this.io.to(client.arenaId).emit('arena_updated', updatedArena);
     } else {

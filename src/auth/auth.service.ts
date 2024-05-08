@@ -16,6 +16,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  // SELECT * FROM user WHERE email = 'logindto.email';
   async login(logindto: LoginDto) {
     // Step 1: Fetch a user with the given email
     const user = await this.prisma.user.findUnique({
