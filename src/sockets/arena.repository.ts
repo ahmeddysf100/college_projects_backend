@@ -19,7 +19,7 @@ import {
   AddParticipantWithGear,
   Arena,
   Arena_updated_gear,
-  Ranks,
+  ranks,
 } from './types/createArena';
 
 @Injectable()
@@ -49,7 +49,7 @@ export class ArenaRepository {
       roundTime: createArenaDto.roundTime,
       participants: {},
       nominations: {},
-      // rankings: [],
+      rankings: null,
       unSolvedQuseions: [],
       results: {},
       totalStages: createArenaDto.arenaGear.length,
@@ -358,19 +358,95 @@ export class ArenaRepository {
       //   .multi([['send_command', 'JSON.GET', key, '.']])
       //   .exec();
 
-      const currentArena: any = await this.redis.call('JSON.GET', key, '.');
+      const currentArena: Arena = JSON.parse(
+        (await this.redis.call('JSON.GET', key, '.')) as string,
+      );
+      const ranks = await this.getRanks(arenaId);
 
+      currentArena.rankings = ranks;
       this.logger.verbose(currentArena);
 
       // if (currentArena === null) {
       //   return '' as any;
       // }
 
-      return JSON.parse(currentArena);
+      return currentArena;
     } catch (e) {
       this.logger.error(`Failed to get arenaId ${arenaId}`);
       throw new InternalServerErrorException(
         `Failed to get arenaId ${arenaId}`,
+      );
+    }
+  }
+
+  async getRanks(arenaId: string): Promise<ranks[]> {
+    this.logger.debug(
+      `attempting to GET Ranks (score,quwstion) for arenaId: ${arenaId}`,
+    );
+    try {
+      const scores = await this.redis.zrevrangebyscore(
+        `ranks:arenaId:${arenaId}:s`,
+        '+inf',
+        '-inf',
+        'WITHSCORES',
+      );
+      const questions = await this.redis.zrevrangebyscore(
+        `ranks:arenaId:${arenaId}:q`,
+        '+inf',
+        '-inf',
+        'WITHSCORES',
+      );
+
+      if (scores.length == 0) {
+        this.logger.warn(`scores in getRnks is empty`);
+        return null;
+      } else if (questions.length == 0) {
+        this.logger.warn(`questions in getRnks is empty`);
+        return null;
+      } else {
+        const temp = [];
+        if (scores.length !== questions.length) {
+          throw new InternalServerErrorException(
+            ` scores and question do not match`,
+          );
+        }
+
+        console.log('aaaaaaaaaaaaaaaa', questions);
+        for (let i = 0; i < scores.length; i++) {
+          //select even(name of player) to split and rematch scores and question name index
+          if (i % 2 === 0) {
+            const parsedScores: string = JSON.parse(scores[i]);
+            const splitString = parsedScores.split(':');
+            // this.logger.fatal(splitString);
+
+            const findIndex = questions.indexOf(scores[i]) as number;
+            if (findIndex !== -1) {
+              // this.logger.fatal(`findIndex(${scores[i]})`, findIndex);
+
+              temp.push({
+                name: splitString[0],
+                id: splitString[1],
+                score: JSON.parse(scores[i + 1]),
+                questions: JSON.parse(questions[findIndex + 1]),
+              });
+            } else {
+              throw new InternalServerErrorException(
+                `faild to GET Ranks (score,quwstion) for arenaId: ${arenaId}`,
+                'ERROR: cant find index of questions.indexOf(scores[i]) in getRanks',
+              );
+            }
+          }
+        }
+        return temp;
+      }
+    } catch (error) {
+      this.logger.debug(
+        `faild to GET Ranks (score,quwstion) for arenaId: ${arenaId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `faild to GET Ranks (score,quwstion) for arenaId: ${arenaId}`,
+        error,
       );
     }
   }
@@ -713,7 +789,7 @@ export class ArenaRepository {
 
           // update ranking for user by incr by 1 and sort ranks
           // await this.updateRankings(nomination.userId, arenaId);
-          await this.incRank(arenaId, nomination.name);
+          await this.incRank(arenaId, nomination.name, nomination.userId);
 
           // return next question because the answer is right to switch question for players
           return {
@@ -744,7 +820,11 @@ export class ArenaRepository {
     }
   }
 
-  async incRank(arenaId: string, playerName: string): Promise<void> {
+  async incRank(
+    arenaId: string,
+    playerName: string,
+    playerUserId: string,
+  ): Promise<void> {
     this.logger.log(
       `Attempting to INC rank (score,quesion) for player name: ${playerName} to arenId: ${arenaId}`,
     );
@@ -757,14 +837,14 @@ export class ArenaRepository {
             `ZINCRBY`,
             `ranks:arenaId:${arenaId}:s`,
             `${score}`,
-            `"${playerName}"`,
+            `"${playerName}:${playerUserId}"`,
           ],
           [
             'send_command',
             `ZINCRBY`,
             `ranks:arenaId:${arenaId}:q`,
             1,
-            `"${playerName}"`,
+            `"${playerName}:${playerUserId}"`,
           ],
         ])
         .exec();
@@ -1070,7 +1150,7 @@ export class ArenaRepository {
       const parsedParticipants = JSON.parse(participants);
       const playersArray = [];
       for (const id in parsedParticipants) {
-        playersArray.push(parsedParticipants[id].name);
+        playersArray.push({ name: parsedParticipants[id].name, userId: id });
       }
 
       for (const player of playersArray) {
@@ -1081,56 +1161,75 @@ export class ArenaRepository {
               `ZADD`,
               `ranks:arenaId:${arenaId}:s`,
               0,
-              `"${player}"`,
+              `"${player.name}:${player.userId}"`,
             ],
-            ['send_command', 'EXPIRE', `ranks:arenaId:${arenaId}:s`, 7200],
+            [
+              'send_command',
+              'EXPIRE',
+              `ranks:arenaId:${arenaId}:s`,
+              +this.ttl - 100,
+            ],
             [
               'send_command',
               `ZADD`,
               `ranks:arenaId:${arenaId}:q`,
               0,
-              `"${player}"`,
+              `"${player.name}:${player.userId}"`,
             ],
-            ['send_command', 'EXPIRE', `ranks:arenaId:${arenaId}:q`, 7200],
+            [
+              'send_command',
+              'EXPIRE',
+              `ranks:arenaId:${arenaId}:q`,
+              +this.ttl - 100,
+            ],
           ])
           .exec();
         this.logger.log(`player: ${player} req: ${req}`);
       }
-    } catch (error) {}
-  }
-
-  async getResult(arenaId: string): Promise<unknown> {
-    this.logger.log(`attempting to get RESULT for arena: ${arenaId}`);
-
-    try {
-      const arena = await this.getArena(arenaId);
-      let temp = [];
-      temp = arena.rankings;
-
-      const { key: maxKey, value: maxValue } = Object.entries(temp).reduce(
-        (acc, [key, value]) => {
-          return value > acc.value ? { key, value } : acc;
-        },
-        { key: null, value: Number.MIN_SAFE_INTEGER },
+    } catch (error) {
+      this.logger.error(
+        `faild to SET rank (score,quesion) for all players in arenId: ${arenaId}`,
+        error,
       );
-
-      const req = await this.redis.call(
-        'JSON.SET',
-        `arenaId:${arenaId}`,
-        `.results`,
-        JSON.stringify({ maxKey: maxKey, maxValue: maxValue }),
-      );
-
-      if (req === 'OK') {
-        return { maxKey: maxKey, maxValue: maxValue };
-      }
-    } catch (e) {
-      this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, e);
       throw new InternalServerErrorException(
-        `Failed getting RESULT for arena: ${arenaId}`,
+        `faild to SET rank (score,quesion) for all players in arenId: ${arenaId}`,
+        error,
       );
     }
   }
+
+  // async getResult(arenaId: string): Promise<unknown> {
+  //   this.logger.log(`attempting to get RESULT for arena: ${arenaId}`);
+
+  //   try {
+  //     const arena = await this.getArena(arenaId);
+  //     let temp = [];
+  //     temp = arena.rankings;
+
+  //     const { key: maxKey, value: maxValue } = Object.entries(temp).reduce(
+  //       (acc, [key, value]) => {
+  //         return value > acc.value ? { key, value } : acc;
+  //       },
+  //       { key: null, value: Number.MIN_SAFE_INTEGER },
+  //     );
+
+  //     const req = await this.redis.call(
+  //       'JSON.SET',
+  //       `arenaId:${arenaId}`,
+  //       `.results`,
+  //       JSON.stringify({ maxKey: maxKey, maxValue: maxValue }),
+  //     );
+
+  //     if (req === 'OK') {
+  //       return { maxKey: maxKey, maxValue: maxValue };
+  //     }
+  //   } catch (e) {
+  //     this.logger.error(`Failed getting RESULT for arena: ${arenaId}`, e);
+  //     throw new InternalServerErrorException(
+  //       `Failed getting RESULT for arena: ${arenaId}`,
+  //     );
+  //   }
+  // }
 
   //VERY IMPORTANT fetch gearData before arenaData
   async timeOut_next_question(

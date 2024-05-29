@@ -48,8 +48,15 @@ export interface Arena {
   participants: Nominations;
   nominations: Nominations;
   un_Solved_Quseions: any[];
-  // rankings: Rankings[];
+  rankings: ranks[] | null;
   results: any[];
+}
+
+export interface ranks {
+  name: string;
+  score: number;
+  questions: number;
+  id: string;
 }
 
 type NominationID = string;

@@ -76,7 +76,7 @@ export class SocketsGateway
       name: client.name,
     });
 
-    this.logger.fatal(updateArena);
+    // this.logger.fatal(updateArena);
 
     if (updateArena === 'started') {
       client.emit('exception', `arena with id:${client.arenaId} has started`);
@@ -134,8 +134,13 @@ export class SocketsGateway
   }
 
   @SubscribeMessage('test')
-  async test() {
-    throw new Error('aaaaaaa');
+  async test(
+    // @MessageBody() nomination: NominationDto,
+    @ConnectedSocket() client: SocketWithAuth,
+  ) {
+    const req = await this.arenaRepository.getRanks('KQH5WF');
+    // this.logger.warn(req)
+    this.io.to(client.arenaId).emit('arena_updated', req);
   }
 
   @SubscribeMessage('nominate')
