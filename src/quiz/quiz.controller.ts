@@ -31,13 +31,14 @@ export class QuizController {
     @Param('difficulty') difficulty: string,
     @Param('subject') subject: string,
   ) {
+    console.log('quiz', { count, difficulty, subject });
     return await this.quizService.findOne(+count, +difficulty, subject);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateQuizDto: UpdateQuizDto) {
-    return this.quizService.update(+id, updateQuizDto);
-  }
+  // @Patch(':id')
+  // update(@Param('id') id: string, @Body() updateQuizDto: UpdateQuizDto) {
+  //   return this.quizService.update(+id, updateQuizDto);
+  // }
 
   @Delete(':id')
   remove(@Param('id') id: string) {

@@ -69,9 +69,9 @@ export class QuizService {
     // LIMIT ${count}`;
   }
 
-  update(id: number, updateQuizDto: UpdateQuizDto) {
-    return `This action updates a #${id} quiz`;
-  }
+  // update(id: number, updateQuizDto: UpdateQuizDto) {
+  //   return `This action updates a #${id} quiz`;
+  // }
 
   remove(id: number) {
     return `This action removes a #${id} quiz`;

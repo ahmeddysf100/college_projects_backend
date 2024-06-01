@@ -357,13 +357,20 @@ export class ArenaRepository {
       // const currentArena: any = await this.redis
       //   .multi([['send_command', 'JSON.GET', key, '.']])
       //   .exec();
+      const ranks = await this.getRanks(arenaId);
+
+      await this.redis.call(
+        'JSON.SET',
+        `${key}`,
+        '.rankings',
+        JSON.stringify(ranks),
+      );
 
       const currentArena: Arena = JSON.parse(
         (await this.redis.call('JSON.GET', key, '.')) as string,
       );
-      const ranks = await this.getRanks(arenaId);
 
-      currentArena.rankings = ranks;
+      // currentArena.rankings = ranks;
       this.logger.verbose(currentArena);
 
       // if (currentArena === null) {
@@ -910,7 +917,7 @@ export class ArenaRepository {
         `score: ${score} , timeTaken = userAnswer: ${totalSeconds_answer} / questionSend: ${totalSeconds_sendTime}/n
         score = 1 - (timeTaken:${timeTaken} / arenaTime:${arenaTime}) * 100;`,
       );
-      return score > 0 ? score : 0;
+      return score > 0 ? +score.toFixed(2) : 0;
     } catch (error) {
       this.logger.error(
         `faild to GET SCORE for player name: ${playerName} to arenId: ${arenaId}`,

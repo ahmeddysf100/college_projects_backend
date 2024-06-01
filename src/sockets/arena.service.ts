@@ -85,6 +85,7 @@ export class ArenaService {
     return {
       arena: joinedArena,
       accessToken: signedString,
+      userId: userId,
     };
   }
 
